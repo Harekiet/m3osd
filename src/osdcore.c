@@ -12,13 +12,15 @@ static void rageMemsetInit(void)
     DMA_StructInit(&DMA_InitStructure);
 
     DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) & zero;
-    //DMA_InitStructure.DMA_Priority = DMA_Priority_High;
-    DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
+    DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+    //DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
     DMA_InitStructure.DMA_M2M = DMA_M2M_Enable;
     DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Word;
+    //DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Word;
+    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
     DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
-    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Word;
+    //DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Word;
+    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
     DMA_InitStructure.DMA_BufferSize = sizeof(osdData.OSD_RAM) / 4;
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
     DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
@@ -31,7 +33,8 @@ static __inline void rageMemset(void)
 {
     DMA1_Channel1->CCR &= (uint16_t) (~DMA_CCR1_EN);
     DMA1_Channel1->CMAR = (uint32_t) osdData.OSD_RAM;
-    DMA1_Channel1->CNDTR = sizeof(osdData.OSD_RAM) / 4;
+    //DMA1_Channel1->CNDTR = sizeof(osdData.OSD_RAM) / 4;
+    DMA1_Channel1->CNDTR = sizeof(osdData.OSD_RAM);
     DMA1_Channel1->CCR |= DMA_CCR1_EN;
     // DMA1_Channel1->CCR |= DMA_CCR1_EN | DMA_CCR1_TCIE; 
     //DMA_Cmd(DMA1_Channel1, ENABLE);
@@ -71,7 +74,7 @@ void osdDrawPixel(int x, int y, int color)
 {
     int offset;
 
-    if ((x > OSD_WIDTH - 1) || (y > OSD_HEIGHT - 1) || x < 0 || y < 0)
+    if ((x >= OSD_WIDTH) || (y >= OSD_HEIGHT) || x < 0 || y < 0)
         return;
 
     offset = osdPixelOffset(x, y);
@@ -84,13 +87,14 @@ void osdDrawPixel(int x, int y, int color)
 }
 
 // more nice drawing Bresenham's line algorithm
-void osdDrawLine(int x0, int y0, int x1, int y1, int color)
+void osdDrawLine(int x0, int y0, int x1, int y1, int color, int type)
 {
     int dx = abs(x1 - x0);
     int dy = abs(y1 - y0);
     int sx, sy;
     int err;
     int e2;
+    int skip = 0;
 
     if (x0 < x1)
         sx = 1;
@@ -105,7 +109,10 @@ void osdDrawLine(int x0, int y0, int x1, int y1, int color)
     err = dx - dy;
 
     while (1) {
-        osdDrawPixel(x0, y0, color);
+        if (!skip)
+            osdDrawPixel(x0, y0, color);
+        if (skip-- <= 0)
+            skip = type;
         if (x0 == x1 && y0 == y1)
             return;
         e2 = 2 * err;
@@ -119,74 +126,6 @@ void osdDrawLine(int x0, int y0, int x1, int y1, int color)
         }
     }
 }
-
-/*
-void osdDrawLine(int x1, int y1, int x2, int y2, int color)
-{
-    unsigned int         i;
-    unsigned int         x;
-    unsigned int         y;
-    int          xinc;
-    int          yinc;
-    int          dx;
-    int          dy;
-    int          e;
-
-    // swap x1,y1  with x2,y2
-    if (x1 > x2) {
-        dx = x1;
-        x1 = x2;
-        x2 = dx;
-        dy = y1;
-        y1 = y2;
-        y2 = dy;
-    }
-
-    dx = x2 - x1;
-    dy = y2 - y1;
-
-    x = x1;
-    y = y1;
-
-    if (dx < 0) {
-        xinc = -1;
-        dx = -dx;
-    } else {
-        xinc = 1;
-    }
-    if (dy < 0) {
-        yinc = -1;
-        dy = -dy;
-    } else {
-        yinc = 1;
-    }
-
-    if (dx > dy) {
-        e = dy - dx;
-        for (i = 0; i <= dx; i++) {
-            osdDrawPixel(x, y, color);
-            if (e >= 0) {
-                e -= dx;
-                y += yinc;
-            }
-            e += dy;
-            x += xinc;
-        }
-    } else {
-        e = dx - dy;
-        for (i = 0; i <= dy; i++){
-            osdDrawPixel(x, y, color);
-            if (e >= 0) {
-                e -= dy;
-                x += xinc;
-            }
-            e += dx;
-            y += yinc;
-        }
-    }
-
-}
-*/
 
 void osdDrawVerticalLine(int x, int y, int height, int color)
 {
@@ -389,7 +328,13 @@ void osdDrawCharacter(int character, int fontType)
 
     ptr++;                      // skip character index (todo: check availability, if not replace with blank)
     osd_cursor_X += *ptr;       // font width
+    
+    if ((osd_cursor_X > OSD_WIDTH - 1 - *ptr) || (osd_cursor_Y > OSD_HEIGHT - 1 - fontHeight) || osd_cursor_X < 0 || osd_cursor_Y < 0)
+        return;
+
     ptr += 2;                   // skip font width, height to character data
+
+    
     if (needsAlign) {
         // 2 byte non-aligned drawing
         for (i = 0; i < fontHeight; i++) {
@@ -451,19 +396,37 @@ void osdDrawDecimal(int font, int value, int numberLength, int zeroPadded, int d
     }
 }
 
+void osdDrawDecimal2(int font, int value, int numberLength, int zeroPadded, int decimalPos)
+{
+    int tmpval;
+    int tmpdiv;
+    int i, zero = 0;
+    const int powers[] = { 0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 };
+
+    tmpval = value;
+
+    for (i = numberLength; i > 0; i--) {
+        tmpdiv = tmpval / powers[i];
+        tmpval = (value % powers[i]);
+        if (tmpdiv || zeroPadded || decimalPos == i - 1 || (tmpdiv == 0 && zero)) {
+            osdDrawCharacter(tmpdiv + '0', font);
+            zero = 1;
+        }
+        if (decimalPos == i - 1)
+            osdDrawCharacter('.', font);
+
+    }
+}
+
+
 /*
  * Hardware stuff
  */
 
-// #define USESPI2
-
-#ifndef USESPI2
 #define OSD_DMA DMA1_Channel3
 #define OSD_SPI SPI1
-#else
-#define OSD_DMA DMA1_Channel5
-#define OSD_SPI SPI2
-#endif
+#define OSDBW_DMA DMA1_Channel5
+#define OSDBW_SPI SPI2
 
 void osdInit(void)
 {
@@ -472,64 +435,39 @@ void osdInit(void)
     NVIC_InitTypeDef nvic;
     DMA_InitTypeDef dma;
     SPI_InitTypeDef spi;
+    TIM_OCInitTypeDef timoc;
 
     // turn on peripherals. we're using DMA1, SPI1, TIM1 here
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_TIM1, ENABLE);
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2 | RCC_APB1Periph_TIM3, ENABLE);
 
     // dma-based memory clear
     rageMemsetInit();
 
-    // OSD Pins
+    // OSD SPI1 Pins
     GPIO_StructInit(&gpio);
-#ifndef USESPI2
-    gpio.GPIO_Pin = GPIO_Pin_7; // SPI1_MOSI
+    gpio.GPIO_Pin = GPIO_Pin_6; // SPI1 MISO
     gpio.GPIO_Mode = GPIO_Mode_AF_PP;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
-    //gpio.GPIO_Speed = GPIO_Speed_2MHz;
-    GPIO_Init(GPIOA, &gpio);
-#else
-    gpio.GPIO_Pin = GPIO_Pin_15;        // SPI2_MOSI
-    gpio.GPIO_Mode = GPIO_Mode_AF_PP;
-    gpio.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOB, &gpio);
-#endif
-
-
-    gpio.GPIO_Pin = GPIO_Pin_15;        // OSD_BW
-    gpio.GPIO_Mode = GPIO_Mode_Out_PP;
-    gpio.GPIO_Speed = GPIO_Speed_50MHz;
-    //gpio.GPIO_Speed = GPIO_Speed_2MHz;
-    GPIO_Init(GPIOB, &gpio);
-    digitalHi(GPIOB, GPIO_Pin_15);
-    //digitalLo(GPIOB, GPIO_Pin_15);
-
-    gpio.GPIO_Pin = GPIO_Pin_8; // TIM1_CH1 HSYNC
-    gpio.GPIO_Mode = GPIO_Mode_IPD;
-    gpio.GPIO_Speed = GPIO_Speed_50MHz;
-    //gpio.GPIO_Speed = GPIO_Speed_2MHz;
     GPIO_Init(GPIOA, &gpio);
 
-    gpio.GPIO_Pin = GPIO_Pin_8; // TIM4 CH3 VSYNC
-    gpio.GPIO_Mode = GPIO_Mode_IPD;
+    GPIO_StructInit(&gpio);
+    gpio.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7; // SPI1 MOSI + CLK slave
+    gpio.GPIO_Mode = GPIO_Mode_IN_FLOATING;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOB, &gpio);
+    GPIO_Init(GPIOA, &gpio);
 
     // OSD SPI
     SPI_StructInit(&spi);
     spi.SPI_Direction = SPI_Direction_1Line_Tx;
-    spi.SPI_Mode = SPI_Mode_Master;
+    spi.SPI_Mode = SPI_Mode_Slave;
     spi.SPI_DataSize = SPI_DataSize_8b;
-    // spi.SPI_DataSize = SPI_DataSize_16b;
     spi.SPI_CPOL = SPI_CPOL_Low;
     spi.SPI_CPHA = SPI_CPHA_1Edge;
     spi.SPI_NSS = SPI_NSS_Soft;
-    // spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2; 
-    spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8;        // 400 pixels on x axis
-    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4; // ~800 pixels on x axis
-    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; // ~200 pixels on x axis
     spi.SPI_FirstBit = 0;
     spi.SPI_CRCPolynomial = 0;
+    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8;
     SPI_Init(OSD_SPI, &spi);
     SPI_Cmd(OSD_SPI, ENABLE);
 
@@ -549,10 +487,71 @@ void osdInit(void)
     //dma.DMA_Priority = DMA_Priority_High;
     dma.DMA_M2M = DMA_M2M_Disable;
     DMA_Init(OSD_DMA, &dma);
+    NVIC_EnableIRQ(DMA1_Channel3_IRQn);      // enable
 
     // OSD DMA for SPI setup
     DMA_Cmd(OSD_DMA, ENABLE);
     SPI_I2S_DMACmd(OSD_SPI, SPI_I2S_DMAReq_Tx, ENABLE);
+
+    // BW SPI2 Pins
+    gpio.GPIO_Pin = GPIO_Pin_14; // SPI2_MISO
+    gpio.GPIO_Mode = GPIO_Mode_AF_PP;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOB, &gpio);
+
+    gpio.GPIO_Pin = GPIO_Pin_13 | GPIO_Pin_15; // SPI2_SCK SPI2_MOSI
+    gpio.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOB, &gpio);
+
+    // OSD SPI2 BW
+    SPI_StructInit(&spi);
+    spi.SPI_Direction = SPI_Direction_1Line_Tx;
+    spi.SPI_Mode = SPI_Mode_Slave;
+    spi.SPI_DataSize = SPI_DataSize_8b;
+    // spi.SPI_DataSize = SPI_DataSize_16b;
+    spi.SPI_CPOL = SPI_CPOL_Low;
+    spi.SPI_CPHA = SPI_CPHA_1Edge;
+    spi.SPI_NSS = SPI_NSS_Soft;
+    // spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2; 
+    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8; // 400 pixels on x axis
+    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4; // ~800 pixels on x axis
+    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; // ~200 pixels on x axis
+    spi.SPI_FirstBit = 0;
+    spi.SPI_CRCPolynomial = 0;
+    SPI_Init(OSDBW_SPI, &spi);
+    SPI_Cmd(OSDBW_SPI, ENABLE);
+
+    // OSDBW DMA DMA1_Channel5
+    DMA_StructInit(&dma);
+    DMA_DeInit(OSDBW_DMA);
+    dma.DMA_PeripheralBaseAddr = (uint32_t) &OSDBW_SPI->DR;
+    dma.DMA_MemoryBaseAddr = (uint32_t) osdData.OSD_RAM;
+    dma.DMA_DIR = DMA_DIR_PeripheralDST;
+    dma.DMA_BufferSize = OSD_HRES;
+    dma.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+    dma.DMA_MemoryInc = DMA_MemoryInc_Enable;
+    dma.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+    dma.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+    dma.DMA_Mode = DMA_Mode_Normal;
+    dma.DMA_Priority = DMA_Priority_VeryHigh; 
+    //dma.DMA_Priority = DMA_Priority_High;
+    dma.DMA_M2M = DMA_M2M_Disable;
+    DMA_Init(OSDBW_DMA, &dma);
+
+    // OSDBW DMA for SPI
+    DMA_Cmd(OSDBW_DMA, ENABLE);
+    SPI_I2S_DMACmd(OSDBW_SPI, SPI_I2S_DMAReq_Tx, ENABLE);
+
+    gpio.GPIO_Pin = GPIO_Pin_8; // TIM1_CH1 HSYNC
+    gpio.GPIO_Mode = GPIO_Mode_IPD;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &gpio);
+
+    gpio.GPIO_Pin = GPIO_Pin_8; // TIM4 CH3 VSYNC
+    gpio.GPIO_Mode = GPIO_Mode_IPD;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOB, &gpio);
 
     // OSD Timer (TIM1@72MHz)
     TIM_TimeBaseStructInit(&tim);
@@ -567,13 +566,11 @@ void osdInit(void)
     TIM_ETRConfig(TIM1, TIM_ExtTRGPSC_OFF, TIM_ExtTRGPolarity_NonInverted, 50);
     TIM_SelectSlaveMode(TIM1, TIM_SlaveMode_Reset);
     TIM_ITConfig(TIM1, TIM_IT_CC1, ENABLE);
-
+    
     // set compare value
     //TIM_SetCompare1(TIM1, 460); // shift left/right osd screen
     //TIM_SetCompare1(TIM1, 430);
-
-    TIM_SetCompare1(TIM1, 480); // timing depended from irq handler
-
+    TIM_SetCompare1(TIM1, 100); // timing depended from irq handler
 
     nvic.NVIC_IRQChannel = TIM1_CC_IRQn;
     nvic.NVIC_IRQChannelPreemptionPriority = 0;
@@ -582,102 +579,159 @@ void osdInit(void)
     NVIC_Init(&nvic);
     TIM_Cmd(TIM1, ENABLE);
 
+    // SPI timing GPIO out (TIM3_CH3)
+    gpio.GPIO_Pin = GPIO_Pin_0; // TIM3_CH3
+    gpio.GPIO_Mode = GPIO_Mode_AF_PP;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOB, &gpio);
+
+    // TIM3C3 clk for SPI1/SPI2 in slave
+    TIM_TimeBaseStructInit(&tim);
+    tim.TIM_Period = 5 - 1;
+    // tim.TIM_Period = 4 - 1;
+    tim.TIM_Prescaler = (2 - 1);
+    tim.TIM_ClockDivision = 0;
+    tim.TIM_CounterMode = TIM_CounterMode_Up;
+    TIM_TimeBaseInit(TIM3, &tim);
+    
+    TIM_OCStructInit( &timoc );
+    timoc.TIM_OutputState = TIM_OutputState_Enable;
+    timoc.TIM_OutputNState = TIM_OutputNState_Disable;
+    timoc.TIM_OCMode = TIM_OCMode_PWM2;
+    timoc.TIM_Pulse = 2;
+    timoc.TIM_OCPolarity = TIM_OCPolarity_Low;
+    timoc.TIM_OCIdleState = TIM_OCIdleState_Set;
+    TIM_OC3Init(TIM3, &timoc );
+    TIM_OC3PreloadConfig(TIM3, TIM_OCPreload_Enable);
+   // TIM_Cmd(TIM3, ENABLE );
+   
+   
+   // setup DMA memcpy for LINE
+    DMA_StructInit(&dma);
+    DMA_DeInit(DMA1_Channel2);
+    dma.DMA_PeripheralBaseAddr = (uint32_t) osdData.OSD_LINE;
+    dma.DMA_MemoryBaseAddr = (uint32_t) osdData.OSD_RAM;
+    dma.DMA_DIR = DMA_DIR_PeripheralDST;
+    dma.DMA_BufferSize = OSD_HRES;
+    dma.DMA_PeripheralInc = DMA_PeripheralInc_Enable;
+    dma.DMA_MemoryInc = DMA_MemoryInc_Enable;
+    dma.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+    dma.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+    dma.DMA_Mode = DMA_Mode_Normal;
+    dma.DMA_Priority = DMA_Priority_VeryHigh;
+    //dma.DMA_Priority = DMA_Priority_High;
+    dma.DMA_M2M = DMA_M2M_Enable;
+    DMA_Init(DMA1_Channel2, &dma);
+    //NVIC_EnableIRQ(DMA1_Channel2_IRQn);   // maybe we need irq for BW transfer
+
+    memset((void *)osdData.OSD_LINEBW, 0xFF, sizeof(osdData.OSD_LINEBW));  // white only
+    memset((void *)osdData.OSD_LINE, 0x00, sizeof(osdData.OSD_LINE));      // last byte must be 0
+    osdData.PAL = 0;  // default is NTSC
+    
     osdData.osdUpdateFlag = CoCreateFlag(0, 0);
 }
 
 
 
+// DMA_OSD (end of pixels line)
+void DMA1_Channel3_IRQHandler(void) 
+{
+    CoEnterISR();
+    if(DMA1->ISR & DMA_ISR_TCIF3) {         // got end of transfer
+        OSD_DMA->CCR &= ~DMA_CCR3_EN;
+        DMA1->IFCR |= DMA_ISR_TCIF3;
+        while(OSD_SPI->SR & SPI_SR_BSY);    // wait SPI for last bits
+        TIM_Cmd(TIM3, DISABLE);             // shut up my dear sck
+        
+        // let fill next line for video out
+        DMA1_Channel2->CCR &= (uint16_t) (~DMA_CCR1_EN);
+        DMA1_Channel2->CMAR = (uint32_t) osdData.ptr + OSD_HRES;   // src
+        DMA1_Channel2->CPAR = (uint32_t) osdData.OSD_LINE; // dst
+        DMA1_Channel2->CNDTR = OSD_HRES;
+        DMA1_Channel2->CCR |= DMA_CCR1_EN;
+    } 
+    CoExitISR();
+}
 
 
 // HSYNC
 // PAL/SECAM have 625/50Hz and 288 active, NTSC 525 and 243 (242) active
 void TIM1_CC_IRQHandler(void)
 {
-    static int PAL = 0;         // default if NTSC, can switched to PAL, but not contrariwise
     int slpos, slmax;
     static int maxline = 0;
     static int inv = 0;
     int line;
 
-
     CoEnterISR();
 
-    slpos = PAL ? 45 : 24;      // used for shift up/down area screen
+    slpos = osdData.PAL ? 46 : 25;      // used for shift up/down area screen
     slmax = slpos + OSD_HEIGHT;
-    osdData.PAL = PAL;
 
     if (TIM1->SR & TIM_SR_CC1IF) {      // capture interrupt
-        if (!(GPIOB->IDR & GPIO_Pin_8) && (osdData.currentScanLine > 100)) {    // wait VSYNC
+        TIM_ClearFlag(TIM1, TIM_FLAG_CC1);
+        if (!(GPIOB->IDR & GPIO_Pin_8) && (osdData.currentScanLine > 200)) {    // wait VSYNC
             // Note: got max 309-314 for PAL and must be 264 and more in NTSC
             if (maxline < osdData.currentScanLine)
                 maxline = osdData.currentScanLine;
 
-            //if (maxline) {
             osdData.maxScanLine = maxline;
-            PAL = maxline > 300 ? 1 : 0;        // recheck mode
-            //}
+            osdData.PAL = maxline > 300 ? 1 : 0;        // recheck mode
             osdData.currentScanLine = 0;
             maxline = 0;
         } else if (GPIOA->IDR & GPIO_Pin_8) {   // check HSYNC
             osdData.currentScanLine++;
-            //}
-
-            // lets out video line
+            
             if (osdData.currentScanLine >= slpos && osdData.currentScanLine <= slmax - 1) {
                 line = osdData.currentScanLine - slpos;
+                osdData.ptr = (uint8_t *)&osdData.OSD_RAM[OSD_HRES * line];
 
-                /*
-                   // make interlaced out odd/even frames
-                   if (inv) {
-                   digitalHi(GPIOB, GPIO_Pin_15);
-                   } else {
-                   digitalLo(GPIOB, GPIO_Pin_15);
-                   } 
-                 */
-
-                osdData.OSD_RAM[OSD_HRES * line + (OSD_HRES - 1)] = 0;
-                OSD_DMA->CCR &= (uint16_t) (~DMA_CCR1_EN);
-                OSD_DMA->CMAR = (uint32_t) & osdData.OSD_RAM[OSD_HRES * line];
-                OSD_DMA->CNDTR = OSD_HRES;
-                OSD_DMA->CCR |= DMA_CCR1_EN;    // run output
+                // SPI1 DMA out pixels
+                OSD_DMA->CCR &= (uint16_t)(~DMA_CCR1_EN);
+                OSD_DMA->CMAR = (uint32_t)&osdData.OSD_LINE;
+				OSD_DMA->CNDTR = OSD_HRES + 1;              // last byte must be zero always 
+				OSD_DMA->CCR |= DMA_CCR1_EN | DMA_CCR1_TCIE;
+				// SPI2 DMA out BW
+                OSDBW_DMA->CCR &= (uint16_t)(~DMA_CCR1_EN);
+                OSDBW_DMA->CMAR = (uint32_t)&osdData.OSD_LINEBW;
+				OSDBW_DMA->CNDTR = OSD_HRES + 1;
+                OSDBW_DMA->CCR |= DMA_CCR1_EN;
+					  
+				// start video out
+                TIM_Cmd(TIM3, ENABLE);
             }
-/*				
-						// clear line
-				if (!inv && osdData.currentScanLine >= slpos - 1 && osdData.currentScanLine <= slmax - 2) {
-					  line = osdData.currentScanLine - slpos - 1;
-						DMA1_Channel1->CCR &= (uint16_t)(~DMA_CCR1_EN);
-						DMA1_Channel1->CMAR = (uint32_t)&osdData.OSD_RAM[OSD_HRES * line]; 
-						DMA1_Channel1->CNDTR = OSD_HRES / 4 + 1;
-						DMA1_Channel1->CCR |= DMA_CCR1_EN; 
-				}	
-*/
 
-            /*
-               if (!inv && osdData.currentScanLine == slmax - 10) {
-               osdClearScreen();
-               } */
+            // first line pre-fill, next will be filled in DMA irq
+            if (osdData.currentScanLine == slpos - 1) {
+                //osdData.OSD_RAM[OSD_HRES * line + (OSD_HRES - 1)] = 0;   // done in memset
+                DMA1_Channel2->CCR &= (uint16_t) (~DMA_CCR1_EN);
+                DMA1_Channel2->CMAR = (uint32_t) osdData.OSD_RAM;   // src
+                DMA1_Channel2->CPAR = (uint32_t) osdData.OSD_LINE; // dst
+                DMA1_Channel2->CNDTR = OSD_HRES;
+                DMA1_Channel2->CCR |= DMA_CCR1_EN;
+            } 
+            
+            // clear prev OSD_RAM line
+            if (inv && osdData.currentScanLine >= slpos && osdData.currentScanLine <= slmax - 1) {
+                line = osdData.currentScanLine - slpos;
+                DMA1_Channel1->CCR &= (uint16_t)(~DMA_CCR1_EN);
+                DMA1_Channel1->CMAR = (uint32_t)&osdData.OSD_RAM[OSD_HRES * line]; 
+                DMA1_Channel1->CNDTR = OSD_HRES;
+                // if (!inv) 
+                    DMA1_Channel1->CCR |= DMA_CCR1_EN; 
+            }	
 
             // we have last line in frame?
             if (osdData.currentScanLine == slmax) {     // max line
                 inv ^= 1;
-                /*                if (inv2++ == 25) {
-                   inv2 = 0;
-                   if (osdData.maxScanLine > 300) 
-                   PAL = 1; 
-                   else 
-                   PAL = 0;   // cant be, coz if cur mode is PAL with NTSC in signal, we dont reach it
-                   osdData.maxScanLine = 0;  // recalc max sometimes
-                   } */
                 if (inv) {      // no need to redraw each frame
-                    osdClearScreen();
-                    isr_SetFlag(osdData.osdUpdateFlag);
-                } else {
-                    isr_SetFlag(osdData.osdRecalcFlag);
-                }
+                    //osdClearScreen();
+                    isr_SetFlag(osdData.osdUpdateFlag);   // redraw after even frame
+                    } else {
+                    isr_SetFlag(osdData.osdRecalcFlag);   // recalc after odd frame
+               }
             }
         }
-        TIM_ClearFlag(TIM1, TIM_FLAG_CC1);
     }
-
     CoExitISR();
 }

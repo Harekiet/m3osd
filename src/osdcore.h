@@ -1,24 +1,22 @@
 #pragma once
 
-//#define OSD_WIDTH   (400 + 8)
-//#define OSD_WIDTH   (360 + 8)
-#define OSD_WIDTH   (400 + 8)
-//#define OSD_WIDTH   472
-//#define OSD_HEIGHT  200
-#define OSD_HEIGHT  (242 - 8)
-//#define OSD_HEIGHT  288               // 288 for PAL, 243/242 for NTSC
+ #define OSD_WIDTH   368
+#define OSD_HEIGHT  240  // NTSC max
+//#define OSD_HEIGHT  (270)     // PAL max
 
 #define OSD_HRES    (OSD_WIDTH / 8)
-//#define OSD_VRES    200
 #define OSD_VRES OSD_HEIGHT
 
 typedef struct {
     volatile uint8_t OSD_RAM[OSD_HRES * OSD_VRES];
+    volatile uint8_t OSD_LINE[OSD_HRES + 1];
+    volatile uint8_t OSD_LINEBW[OSD_HRES + 1];
     OS_FlagID osdUpdateFlag;
     OS_FlagID osdRecalcFlag;
-    uint32_t currentScanLine;
-    uint32_t maxScanLine;
-    int PAL;                    // PAL or NTSC
+    uint16_t currentScanLine;
+    uint16_t maxScanLine;
+    uint8_t PAL;                    // PAL or NTSC
+    uint8_t *ptr;                   // current pos in OSD_RAM for DMA irq refresh
 } osdData_t;
 
 //! Bitmask for drawing circle octant 0.
@@ -51,7 +49,7 @@ void osdInit(void);
 void osdClearScreen(void);
 void osdTestPattern(void);
 void osdDrawPixel(int x, int y, int color);
-void osdDrawLine(int x1, int y1, int x2, int y2, int color);
+void osdDrawLine(int x1, int y1, int x2, int y2, int color, int type);
 void osdDrawHorizontalLine(int x, int y, int length, int color);
 void osdDrawVerticalLine(int x, int y, int height, int color);
 void osdDrawRectangle(int x, int y, int width, int height, int color);
@@ -60,5 +58,6 @@ void osdDrawFilledCircle(int x, int y, int radius, int color, uint8_t quadrant_m
 void osdSetCursor(int x, int y);
 void osdDrawCharacter(int character, int fontType);
 void osdDrawDecimal(int font, int value, int numberLength, int zeroPadded, int decimalPos);
+void osdDrawDecimal2(int font, int value, int numberLength, int zeroPadded, int decimalPos);
 
 extern osdData_t osdData;

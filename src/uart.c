@@ -23,7 +23,7 @@ serialPort_t *serialUSART1(uint32_t baudRate)
     s->txBufferSize = UART1_TX_BUFFER_SIZE;
     s->rxBuffer = rx1Buffer;
     s->txBuffer = tx1Buffer;
-    s->rxDMAChannel = DMA1_Channel5;
+    //s->rxDMAChannel = DMA1_Channel5;
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
     // USART1_TX    PA9

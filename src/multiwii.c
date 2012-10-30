@@ -61,8 +61,8 @@ void parseMSP(void)
         break;
 
     case MSP_ATTITUDE:
-        multiwiiData.angleRoll = (int16_t) read16() / 10;
-        multiwiiData.anglePitch = (int16_t) read16() / 10;
+        multiwiiData.angleRoll = (int16_t) read16();
+        multiwiiData.anglePitch = (int16_t) read16();
         multiwiiData.heading = (int16_t) read16();
         break;
 
@@ -146,29 +146,40 @@ int receiveMSP(void)
     return 0;
 }
 
-static void multiwiiRequestData(void)
+static void multiwiiRequestData(int type)
 {
     uint8_t wp = 0;
-    static int flag = 0;
 
-    requestMSP(MSP_ATTITUDE, NULL, 0);
-    requestMSP(MSP_ALTITUDE, NULL, 0);
-    if (flag ^= 1) {            // coz buffer overflow
-        requestMSP(MSP_RAW_GPS, NULL, 0);
-        requestMSP(MSP_COMP_GPS, NULL, 0);
-    } else {
-        requestMSP(MSP_WP, &wp, 1);
+    switch (type) {  // req without spike
+        default:
+        case 0:
+            requestMSP(MSP_ATTITUDE, NULL, 0);
+            requestMSP(MSP_ALTITUDE, NULL, 0);
+            break;
+        
+        case 1:
+            requestMSP(MSP_RAW_GPS, NULL, 0);  
+            break;
+
+        case 2:
+            requestMSP(MSP_COMP_GPS, NULL, 0);  // LOS, HOD
+            break;
+        
+        case 3:
+            requestMSP(MSP_WP, &wp, 1);   // Home Pos
+            break;
     }
-    //requestMSP(MSP_RAW_GPS, NULL, 0);
 }
 
 static void multiwiiTask(void *unused)
 {
+    int type = 0;
+    
     multiwiiData.serial = serialOpen(USART2, 115200);
 
     while (1) {
         CoTickDelay(8);
-        multiwiiRequestData();
+        multiwiiRequestData(type++ % 4);
         CoTickDelay(2);
         while (uartAvailable(multiwiiData.serial))
             receiveMSP();
