@@ -1,8 +1,10 @@
 #pragma once
 
- #define OSD_WIDTH   368
-#define OSD_HEIGHT  240  // NTSC max
-//#define OSD_HEIGHT  (270)     // PAL max
+#define OSD_WIDTH   352
+
+#define OSD_HEIGHT_NTSC 240
+#define OSD_HEIGHT_PAL 288
+#define OSD_HEIGHT OSD_HEIGHT_PAL
 
 #define OSD_HRES    (OSD_WIDTH / 8)
 #define OSD_VRES OSD_HEIGHT
@@ -16,7 +18,8 @@ typedef struct {
     uint16_t currentScanLine;
     uint16_t maxScanLine;
     uint8_t PAL;                    // PAL or NTSC
-    uint8_t *ptr;                   // current pos in OSD_RAM for DMA irq refresh
+    uint8_t *ptrOSD_RAM;            // current pos in OSD_RAM for DMA irq refresh
+    uint16_t Height;                // depend from PAL. OSD_HEIGHT_PAL or OSD_HEIGHT_NTSC  
 } osdData_t;
 
 //! Bitmask for drawing circle octant 0.

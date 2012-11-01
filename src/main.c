@@ -111,12 +111,12 @@ void timerDelay(uint16_t us)
 
 void osdHorizon(void)
 {
-    int x_dim = OSD_WIDTH;      // Number of screen pixels along x axis
-    int y_dim = OSD_HEIGHT;     // Number of screen pixels along y axis
-    int L = 79+30;                 // Length of main horizon line indicator
-    int l = 10;                 // Length of small angle indicator lines
+    int x_dim = OSD_WIDTH;        // Number of screen pixels along x axis
+    int y_dim = osdData.Height;   // Number of screen pixels along y axis
+    int L = 79+25;                // Length of main horizon line indicator
+    int l = 10;                   // Length of small angle indicator lines
     // float theta_max = 42.5 * (M_PI / 180);        // Max pitch angle displayed on screen
-    float theta_max = 19 * (M_PI / 180); // OSD FOV/2
+    float theta_max = 23 * (M_PI / 180); // OSD FOV/2
     int x_c, y_c;
     short x_a[36] = { 0, };
     short y_a[36] = { 0, };
@@ -223,25 +223,11 @@ void mainTask(void *unused)
     int offset, head, alt;
 
     while (1) {
-        //osdClearScreen(); 
-        // wait for vsync
-        //CoWaitForSingleFlag(osdData.osdUpdateFlag, 0);
-        //CoClearFlag(osdData.osdUpdateFlag);
-        //LED1_TOGGLE;
-
-        // CoTickDelay(100);
-        //osdClearScreen();
-        //CoWaitForSingleFlag(osdData.osdClear, 0);
-        //CoClearFlag(osdData.osdClear);
-        //CoTickDelay(1);
-
-
-
         CoWaitForSingleFlag(osdData.osdUpdateFlag, 0);
         CoClearFlag(osdData.osdUpdateFlag);
         LED1_TOGGLE;
         
-       // osdDrawRectangle(0, 0, OSD_WIDTH, OSD_HEIGHT, 1);
+       // osdDrawRectangle(0, 0, OSD_WIDTH, osdData.Height, 1);
 
         osdHorizon();
 
@@ -287,22 +273,22 @@ void mainTask(void *unused)
 
 
         // altitude
-        osdDrawVerticalLine(OSD_WIDTH - 100 + 20 + 12, 50 - 3, 160, 1);
-        osdSetCursor(OSD_WIDTH - 100 - 1 + 24, OSD_HEIGHT / 2 - 10);
+        osdDrawVerticalLine(OSD_WIDTH - 100 + 20 + 12, osdData.Height / 2 - 140 / 2 - 3, 160, 1);
+        osdSetCursor(OSD_WIDTH - 100 - 1 + 24, osdData.Height / 2 - 10);
         // osdDrawCharacter(239+32,4);
         osdDrawCharacter(249 + 32, FONT_16PX_FIXED);
         for (i = 50; i < 210; i += 10) {
             alt = multiwiiData.altitude / 100;
             //alt = multiwiiData.GPS_altitude;
             offset = alt % 10;
-            osdDrawHorizontalLine(OSD_WIDTH - 100 + 20 + 12, i + offset - 3, 5, 1);
+            osdDrawHorizontalLine(OSD_WIDTH - 100 + 20 + 12, osdData.Height / 2 - 50 - 140 / 2 + i + offset - 3, 5, 1);
             if (!((alt - offset + 120 - i) % 20) && (alt - offset + 120 - i + 10 < alt || alt - offset + 120 - i - 10 > alt)) {
-                osdSetCursor(OSD_WIDTH - 90 + 24, i + offset - 6);
+                osdSetCursor(OSD_WIDTH - 90 + 24, osdData.Height / 2 - 50 - 140 / 2 + i + offset - 6);
                 osdDrawDecimal(FONT_8PX_FIXED, alt - offset + 120 - i, 5, 0, 5);
             }
 
         }
-        osdSetCursor(OSD_WIDTH - 98 + 20 + 12, OSD_HEIGHT / 2 - 10);
+        osdSetCursor(OSD_WIDTH - 98 + 20 + 12, osdData.Height / 2 - 10);
         //osdDrawDecimal(4, multiwiiData.GPS_altitude, 4, 0, 4);
         osdDrawDecimal(4, multiwiiData.altitude, 5, 0, 2);
 
@@ -313,25 +299,19 @@ void mainTask(void *unused)
            osdDrawFilledCircle(50, 150, 8, 0, GFX_QUADRANT0 | GFX_QUADRANT2);
          */
 
-        //osdDrawRectangle(0, 0, OSD_WIDTH - 8, OSD_HEIGHT, 1);
-
-
-        osdSetCursor(OSD_WIDTH - 8 * 8, 2);
-        osdDrawCharacter('L', FONT_8PX_FIXED);
-        osdDrawCharacter('N', FONT_8PX_FIXED);
-        osdDrawDecimal(FONT_8PX_FIXED, osdData.maxScanLine, 3, 0, 3);
         if (osdData.PAL) {
-            osdSetCursor(OSD_WIDTH - 8 * 8, 2 + 8);
+            osdSetCursor(OSD_WIDTH - 8 * 8 - 1, 0);
             osdDrawCharacter('P', FONT_8PX_FIXED);
             osdDrawCharacter('A', FONT_8PX_FIXED);
             osdDrawCharacter('L', FONT_8PX_FIXED);
         } else {
-            osdSetCursor(OSD_WIDTH - 8 * 8, 2 + 8);
+            osdSetCursor(OSD_WIDTH - 8 * 8 - 1, 0);
             osdDrawCharacter('N', FONT_8PX_FIXED);
             osdDrawCharacter('T', FONT_8PX_FIXED);
             osdDrawCharacter('S', FONT_8PX_FIXED);
             osdDrawCharacter('C', FONT_8PX_FIXED);
         }
+        osdDrawDecimal2(FONT_8PX_FIXED, osdData.maxScanLine, 3, 0, 3);
 
         // GPS
         osdSetCursor(3, 50);
@@ -387,7 +367,7 @@ void mainTask(void *unused)
         //osdDrawDecimal(2, multiwiiData.GPS_update, 3, 3, 3);
         //osdDrawDecimal(3, multiwiiData.GPS_update, 3, 3, 3);
         osdDrawDecimal(FONT_16PX_FIXED, multiwiiData.GPS_update, 3, 3, 3);
-        osdDrawDecimal(FONT_8PX_FIXED, multiwiiData.GPS_update, 3, 3, 3);
+        //osdDrawDecimal(FONT_8PX_FIXED, multiwiiData.GPS_update, 3, 3, 3);
 
         osdSetCursor(3, 50 + 16 * 5);
         osdDrawCharacter('L', FONT_16PX_FIXED);
@@ -404,15 +384,15 @@ void mainTask(void *unused)
 
 
 
-        osdSetCursor(3, OSD_HEIGHT - 2 * 16 - 1);
-        osdDrawDecimal(FONT_16PX_FIXED, 1260, 5, 0, 2);
+        osdSetCursor(0, osdData.Height - 2 * 16 - 1);
+        osdDrawDecimal2(FONT_16PX_FIXED, 1260, 5, 0, 2);
         osdDrawCharacter('V', FONT_16PX_FIXED);
-        osdDrawDecimal(FONT_16PX_FIXED, 1234, 5, 0, 2);
+        osdDrawDecimal2(FONT_16PX_FIXED, 1234, 5, 0, 2);
         osdDrawCharacter('A', FONT_16PX_FIXED);
 
 
-        osdSetCursor(3, OSD_HEIGHT - 1 * 16 - 1);
-        osdDrawDecimal(FONT_16PX_FIXED, 1234, 5, 0, 5);
+        osdSetCursor(0, osdData.Height - 1 * 16 - 1);
+        osdDrawDecimal2(FONT_16PX_FIXED, 1234, 5, 0, 5);
         osdDrawCharacter('M', FONT_16PX_FIXED);
         osdDrawCharacter('a', FONT_16PX_FIXED);
         osdDrawCharacter('h', FONT_16PX_FIXED);
@@ -436,7 +416,7 @@ void mainTask(void *unused)
         osdDrawDecimal(1, multiwiiData.angleRoll, 5, 0, 3);
 				*/
 
-        CoTickDelay(2);
+        CoTickDelay(5);
     }
 }
 

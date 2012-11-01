@@ -74,7 +74,7 @@ void osdDrawPixel(int x, int y, int color)
 {
     int offset;
 
-    if ((x >= OSD_WIDTH) || (y >= OSD_HEIGHT) || x < 0 || y < 0)
+    if ((x >= OSD_WIDTH) || (y >= osdData.Height) || x < 0 || y < 0)
         return;
 
     offset = osdPixelOffset(x, y);
@@ -133,8 +133,8 @@ void osdDrawVerticalLine(int x, int y, int height, int color)
     int start = x & 0x7;
     uint8_t mask = 1 << (7 - start);
 
-    if (y + height > OSD_HEIGHT)
-        height = OSD_HEIGHT - y;
+    if (y + height > osdData.Height)
+        height = osdData.Height - y;
 
     while (height--) {
         if (color)
@@ -329,7 +329,7 @@ void osdDrawCharacter(int character, int fontType)
     ptr++;                      // skip character index (todo: check availability, if not replace with blank)
     osd_cursor_X += *ptr;       // font width
     
-    if ((osd_cursor_X > OSD_WIDTH - 1 - *ptr) || (osd_cursor_Y > OSD_HEIGHT - 1 - fontHeight) || osd_cursor_X < 0 || osd_cursor_Y < 0)
+    if ((osd_cursor_X > OSD_WIDTH - 1 - *ptr) || (osd_cursor_Y > osdData.Height - 1 - fontHeight) || osd_cursor_X < 0 || osd_cursor_Y < 0)
         return;
 
     ptr += 2;                   // skip font width, height to character data
@@ -568,9 +568,7 @@ void osdInit(void)
     TIM_ITConfig(TIM1, TIM_IT_CC1, ENABLE);
     
     // set compare value
-    //TIM_SetCompare1(TIM1, 460); // shift left/right osd screen
-    //TIM_SetCompare1(TIM1, 430);
-    TIM_SetCompare1(TIM1, 100); // timing depended from irq handler
+    TIM_SetCompare1(TIM1, 80); // shift left/right osd screen. timing depended from irq handler
 
     nvic.NVIC_IRQChannel = TIM1_CC_IRQn;
     nvic.NVIC_IRQChannelPreemptionPriority = 0;
@@ -587,9 +585,19 @@ void osdInit(void)
 
     // TIM3C3 clk for SPI1/SPI2 in slave
     TIM_TimeBaseStructInit(&tim);
-    tim.TIM_Period = 5 - 1;
-    // tim.TIM_Period = 4 - 1;
-    tim.TIM_Prescaler = (2 - 1);
+    // tim.TIM_Period = 5 - 1;
+    // tim.TIM_Prescaler = (2 - 1);
+    tim.TIM_Prescaler = (1 - 1);   
+    
+                                   // 5  - 14.39885 ~758
+                                   // 6  - 11.99904 ~631
+                                   // 7  - 10.28489 ~541
+                                   // 8  - 8.99928  ~473
+                                   // 9  - 7.99936  ~421 
+    tim.TIM_Period = 10;           // 10 - 7.199424 ~378 NTSC pixels 
+                                   // 11 - 6.54931  ~344 
+                                   // 12 - 5.99952  ~315 
+   
     tim.TIM_ClockDivision = 0;
     tim.TIM_CounterMode = TIM_CounterMode_Up;
     TIM_TimeBaseInit(TIM3, &tim);
@@ -627,6 +635,7 @@ void osdInit(void)
     memset((void *)osdData.OSD_LINEBW, 0xFF, sizeof(osdData.OSD_LINEBW));  // white only
     memset((void *)osdData.OSD_LINE, 0x00, sizeof(osdData.OSD_LINE));      // last byte must be 0
     osdData.PAL = 0;  // default is NTSC
+    osdData.Height = OSD_HEIGHT_NTSC;
     
     osdData.osdUpdateFlag = CoCreateFlag(0, 0);
 }
@@ -645,7 +654,7 @@ void DMA1_Channel3_IRQHandler(void)
         
         // let fill next line for video out
         DMA1_Channel2->CCR &= (uint16_t) (~DMA_CCR1_EN);
-        DMA1_Channel2->CMAR = (uint32_t) osdData.ptr + OSD_HRES;   // src
+        DMA1_Channel2->CMAR = (uint32_t) osdData.ptrOSD_RAM + OSD_HRES;   // src
         DMA1_Channel2->CPAR = (uint32_t) osdData.OSD_LINE; // dst
         DMA1_Channel2->CNDTR = OSD_HRES;
         DMA1_Channel2->CCR |= DMA_CCR1_EN;
@@ -665,8 +674,9 @@ void TIM1_CC_IRQHandler(void)
 
     CoEnterISR();
 
-    slpos = osdData.PAL ? 46 : 25;      // used for shift up/down area screen
-    slmax = slpos + OSD_HEIGHT;
+    osdData.Height = osdData.PAL ? OSD_HEIGHT_PAL : OSD_HEIGHT_NTSC;
+    slpos = osdData.PAL ? 29 /* 46 */ : 25;      // used for shift up/down area screen
+    slmax = slpos + osdData.Height;
 
     if (TIM1->SR & TIM_SR_CC1IF) {      // capture interrupt
         TIM_ClearFlag(TIM1, TIM_FLAG_CC1);
@@ -684,7 +694,7 @@ void TIM1_CC_IRQHandler(void)
             
             if (osdData.currentScanLine >= slpos && osdData.currentScanLine <= slmax - 1) {
                 line = osdData.currentScanLine - slpos;
-                osdData.ptr = (uint8_t *)&osdData.OSD_RAM[OSD_HRES * line];
+                osdData.ptrOSD_RAM = (uint8_t *)&osdData.OSD_RAM[OSD_HRES * line];
 
                 // SPI1 DMA out pixels
                 OSD_DMA->CCR &= (uint16_t)(~DMA_CCR1_EN);
@@ -717,7 +727,7 @@ void TIM1_CC_IRQHandler(void)
                 DMA1_Channel1->CCR &= (uint16_t)(~DMA_CCR1_EN);
                 DMA1_Channel1->CMAR = (uint32_t)&osdData.OSD_RAM[OSD_HRES * line]; 
                 DMA1_Channel1->CNDTR = OSD_HRES;
-                // if (!inv) 
+                if (inv) 
                     DMA1_Channel1->CCR |= DMA_CCR1_EN; 
             }	
 
