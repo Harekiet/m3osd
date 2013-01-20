@@ -39,10 +39,16 @@ void CoIdleTask(void *pdata)
     while (1) {
         idleCounter++;
 
-        __nop();
-        __nop();
-        __nop();
-        __nop();
+
+//        __nop();
+//        __nop();
+//        __nop();
+//        __nop();
+        asm("nop");
+        asm("nop");
+        asm("nop");
+        asm("nop");
+
 
         cycles = *DWT_CYCCNT;
         *DWT_CYCCNT = 0;        // reset the counter
