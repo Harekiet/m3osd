@@ -9017,7 +9017,7 @@ const uint8_t fontdata_16px_fixed[] = {
 };
 
 // keep this synced with the enum in fonts.h (same order also)
-fontdata_t fonts[] = {
+const fontdata_t fonts[] = {
     { 6, 8, fontdata_6px_prop },
     { 8, 8, fontdata_8px_prop },
     { 8, 8, fontdata_8px_prop_bold },

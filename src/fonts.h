@@ -6,7 +6,7 @@ typedef struct {
     const uint8_t *data;
 } fontdata_t;
 
-extern fontdata_t fonts[];
+extern const fontdata_t fonts[];
 
 // sync with font list at bottom of fonts.c
 enum {
