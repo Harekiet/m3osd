@@ -5,9 +5,9 @@
 #include "board.h"
 #include "uart.h"
 
-static serialPort_t serialPort1;
-static serialPort_t serialPort2;
-static serialPort_t serialPort3;
+serialPort_t serialPort1;
+serialPort_t serialPort2;
+serialPort_t serialPort3;
 
 // USART1 - GPS (RX - DMA, TX - IRQ)
 serialPort_t *serialUSART1(uint32_t baudRate)
