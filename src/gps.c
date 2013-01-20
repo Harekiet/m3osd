@@ -134,7 +134,7 @@ uint32_t GPS_coord_to_degrees(char *s)
     int i;
 
     // scan for decimal point or end of field
-    for (p = s; isdigit(*p); p++);
+    for (p = s; valid_digit(*p); p++);
     q = s;
 
     // convert degrees
@@ -156,7 +156,7 @@ uint32_t GPS_coord_to_degrees(char *s)
         q = p + 1;
         for (i = 0; i < 4; i++) {
             frac_min *= 10;
-            if (isdigit(*q))
+            if (valid_digit(*q))
                 frac_min += *q++ - '0';
         }
     }
