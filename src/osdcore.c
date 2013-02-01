@@ -5,8 +5,6 @@
 osdData_t osdData;
 
 
-
-
 // 5  - 14.39885 ~758
 // 6  - 11.99904 ~631
 // 7  - 10.28489 ~541
@@ -685,6 +683,7 @@ void osdInit(void)
 
     TIM_OC3PreloadConfig(TIM3, TIM_OCPreload_Enable);
 
+#if 0
    // setup DMA memcpy for LINE
     DMA_StructInit(&dma);
     DMA_DeInit(DMA1_Channel2);
@@ -701,10 +700,11 @@ void osdInit(void)
     //dma.DMA_Priority = DMA_Priority_High;
     dma.DMA_M2M = DMA_M2M_Enable;
     DMA_Init(DMA1_Channel2, &dma);
+#endif
     //NVIC_EnableIRQ(DMA1_Channel2_IRQn);   // maybe we need irq for BW transfer
 
     memset((void *)osdData.OSD_LINEBW, 0xFF, sizeof(osdData.OSD_LINEBW));  // white only
-    memset((void *)osdData.OSD_LINE, 0x00, sizeof(osdData.OSD_LINE));      // last byte must be 0
+//    memset((void *)osdData.OSD_LINE, 0x00, sizeof(osdData.OSD_LINE));      // last byte must be 0
     osdData.PAL = 0;  // default is NTSC
 
     osdData.osdUpdateFlag = CoCreateFlag(0, 0);
@@ -720,17 +720,23 @@ void DMA1_Channel3_IRQHandler(void)
         DMA1->IFCR |= DMA_ISR_TCIF3;
         while(OSD_SPI->SR & SPI_SR_BSY);    // wait SPI for last bits
 
+        //Disable the timer
         TIM_Cmd(TIM3, DISABLE);             // shut up my dear sck
+        //Update the timer to reset internal counters
+        TIM_GenerateEvent( TIM3, TIM_EventSource_Update );
+
         //Clears flags to allow proper retriggering
 //      TIM_ClearFlag(TIM3, TIM_SR_TIF);
 //		TIM_ClearFlag(TIM1, TIM_SR_CC1IF);
         
-        // let fill next line for video out
-        DMA1_Channel2->CCR &= (uint16_t) (~DMA_CCR1_EN);
-        DMA1_Channel2->CMAR = (uint32_t) osdData.ptrOSD_RAM + OSD_HRES;   // src
-        DMA1_Channel2->CPAR = (uint32_t) osdData.OSD_LINE; // dst
-        DMA1_Channel2->CNDTR = OSD_HRES;
-        DMA1_Channel2->CCR |= DMA_CCR1_EN;
+        // clear prev OSD_RAM line when that's enabled
+        if ( osdData.ptrLine ) {
+            DMA1_Channel1->CCR &= (uint16_t)(~DMA_CCR1_EN);
+            DMA1_Channel1->CMAR = (uint32_t)osdData.ptrLine;
+            DMA1_Channel1->CNDTR = OSD_HRES;
+            DMA1_Channel1->CCR |= DMA_CCR1_EN;
+        }
+
     } 
     CoExitISR();
 }
@@ -764,7 +770,6 @@ void TIM1_TRG_COM_IRQHandler(void) {
     int slpos, slmax;
     static int maxline = 0;
     static int inv = 0;
-    int line;
 
     CoEnterISR();
 
@@ -789,51 +794,36 @@ void TIM1_TRG_COM_IRQHandler(void) {
             osdData.currentScanLine++;
             //Check if we're in the active video output stage yet
             if (osdData.currentScanLine >= slpos && osdData.currentScanLine <= slmax - 1) {
-                line = osdData.currentScanLine - slpos;
-                osdData.ptrOSD_RAM = (uint8_t *)&osdData.OSD_RAM[OSD_HRES * line];
+                int line = osdData.currentScanLine - slpos;
+                osdData.ptrLine = (uint8_t *)&osdData.OSD_RAM[OSD_HRES * line];
 
                 // SPI1 DMA out pixels
                 OSD_DMA->CCR &= (uint16_t)(~DMA_CCR1_EN);
-                OSD_DMA->CMAR = (uint32_t)&osdData.OSD_LINE;
-				OSD_DMA->CNDTR = OSD_HRES + 1;              // last byte must be zero always 
+                OSD_DMA->CMAR = (uint32_t)osdData.ptrLine;
+				OSD_DMA->CNDTR = OSD_HRES;
 				OSD_DMA->CCR |= DMA_CCR1_EN | DMA_CCR1_TCIE;
 				// SPI2 DMA out BW
                 OSDBW_DMA->CCR &= (uint16_t)(~DMA_CCR1_EN);
                 OSDBW_DMA->CMAR = (uint32_t)&osdData.OSD_LINEBW;
-				OSDBW_DMA->CNDTR = OSD_HRES + 1;
+				OSDBW_DMA->CNDTR = OSD_HRES;
                 OSDBW_DMA->CCR |= DMA_CCR1_EN;
-					  
+
+                //Don't let the dma finished handler clear the line just yet
+                if ( !inv ) {
+//                	osdData.ptrLine = 0;
+                }
 				// enable tim3, should wait for it's trigger input
             }
-
-            // first line pre-fill, next will be filled in DMA irq
-            if (osdData.currentScanLine == slpos - 1) {
-                //osdData.OSD_RAM[OSD_HRES * line + (OSD_HRES - 1)] = 0;   // done in memset
-                DMA1_Channel2->CCR &= (uint16_t) (~DMA_CCR1_EN);
-                DMA1_Channel2->CMAR = (uint32_t) osdData.OSD_RAM;   // src
-                DMA1_Channel2->CPAR = (uint32_t) osdData.OSD_LINE; // dst
-                DMA1_Channel2->CNDTR = OSD_HRES;
-                DMA1_Channel2->CCR |= DMA_CCR1_EN;
-            } 
-            
-            // clear prev OSD_RAM line
-            if (inv && osdData.currentScanLine >= slpos && osdData.currentScanLine <= slmax - 1) {
-                line = osdData.currentScanLine - slpos;
-                DMA1_Channel1->CCR &= (uint16_t)(~DMA_CCR1_EN);
-                DMA1_Channel1->CMAR = (uint32_t)&osdData.OSD_RAM[OSD_HRES * line]; 
-                DMA1_Channel1->CNDTR = OSD_HRES;
-                DMA1_Channel1->CCR |= DMA_CCR1_EN;
-            }	
 
             // we have last line in frame?
             if (osdData.currentScanLine == slmax) {     // max line
                 inv ^= 1;
-                if (inv) {      // no need to redraw each frame
+//                if (inv) {      // no need to redraw each frame
                     //osdClearScreen();
                     isr_SetFlag(osdData.osdUpdateFlag);   // redraw after even frame
-                } else {
+//                } else {
 //                    isr_SetFlag(osdData.osdRecalcFlag);   // recalc after odd frame
-               }
+//               }
             }
         }
     }

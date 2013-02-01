@@ -224,7 +224,7 @@ void mainTask(void *unused)
         
         //Show a debug rectangle around the screen
         if ( 1 || cfg.showBorder ) {
-//        	osdDrawRectangle(0, 0, width, height, 1);
+        	osdDrawRectangle(0, 0, width, height, 1);
         }
         osdHorizon();
 

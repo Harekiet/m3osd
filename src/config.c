@@ -142,9 +142,9 @@ void configReset() {
 
     cfg.version = CONFIG_VERSION;
     cfg.width = OSD_WIDTH_MAX;
-    cfg.height = OSD_HEIGHT_MAX;
+    cfg.height = OSD_HEIGHT_MAX - 10;
     cfg.delayX = 55;
-    cfg.delayY = 35;
+    cfg.delayY = 46;
     cfg.showBorder = 0;
     cfg.clockDivider = 9;
     cfg.gpsBaudrate = 115200;
