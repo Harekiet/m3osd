@@ -96,7 +96,7 @@ But in Dynamic Task Scheduling model(1),task resources will be recovered.
 If in Static Task Scheduling model(0),mutex module can not be used, as this model don't
 support to change task priority while CoOS running. 
 */
-#define CFG_TASK_SCHEDULE_EN     (1)
+#define CFG_TASK_SCHEDULE_EN     (0)
 
 
 /*---------------------- Task Management Config -----------------------------*/
@@ -130,7 +130,7 @@ Enable(1) or disable(0) stack overflow checkout .
 /*!< 
 Enable(1) or disable(0) memory management.	      
 */
-#define CFG_MM_EN               (1)   
+#define CFG_MM_EN               (0)
 
 /*!< 
 Max number of memory.(must be less than 32).      
@@ -145,7 +145,7 @@ Max number of memory.(must be less than 32).
 /*!< 
 Enable(1) or disable(0) kernel heap management.	      
 */
-#define CFG_KHEAP_EN            (1)  		
+#define CFG_KHEAP_EN            (0)
 
 /*!< 
 Kernel heap size(word).      
@@ -161,7 +161,7 @@ Kernel heap size(word).
 Enable(1) or disable(0) TimeDelay() API.		      
 */
 #if CFG_TASK_WAITTING_EN >0
-#define CFG_TIME_DELAY_EN       (1)	
+#define CFG_TIME_DELAY_EN       (1)
 #endif
 
 
@@ -169,7 +169,7 @@ Enable(1) or disable(0) TimeDelay() API.
 /*!< 
 Enable(1) or disable(0) timer management.		      
 */
-#define CFG_TMR_EN              (1)
+#define CFG_TMR_EN              (0)
 
 /*!< 
 Specify max number timer.(must be less than 32)      
@@ -185,7 +185,7 @@ Enable(1) or disable(0) events management,
 events including semaphore,mailbox,queue.             
 */
 #if CFG_TASK_WAITTING_EN > 0
-#define  CFG_EVENT_EN           (1) 
+#define  CFG_EVENT_EN           (0)
 #endif
 	   	
 #if CFG_EVENT_EN > 0
@@ -203,17 +203,17 @@ Event = semaphore + mailbox + queue;
 /*!< 
 Enable(1) or disable(0) semaphore management.	      
 */
-#define CFG_SEM_EN              (1)	
+#define CFG_SEM_EN              (0)
 
 /*!< 
 Enable(1) or disable(0) mailbox management.	      
 */		
-#define CFG_MAILBOX_EN          (1)	
+#define CFG_MAILBOX_EN          (0)
 
 /*!< 
 Enable(1) or disable(0) queue management.		      
 */		
-#define CFG_QUEUE_EN            (1)	
+#define CFG_QUEUE_EN            (0)
 
 /*!< 
 Max number of queue.(less than CFG_MAX_EVENT).       

@@ -1,0 +1,8 @@
+target remote localhost:2331
+monitor interface SWD
+monitor speed 2000
+monitor flash device = STM32F103C8
+monitor flash download = 1
+monitor flash breakpoints = 1
+monitor endian little
+monitor reset

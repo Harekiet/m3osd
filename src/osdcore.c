@@ -4,8 +4,29 @@
 
 osdData_t osdData;
 
+
+
+
+// 5  - 14.39885 ~758
+// 6  - 11.99904 ~631
+// 7  - 10.28489 ~541
+// 8  - 8.99928  ~473
+// 9  - 7.99936  ~421
+// 10 - 7.199424 ~378
+// 11 - 6.54931  ~344
+// 12 - 5.99952  ~315
+
+//PAL
+//Line time is 64 microseconds
+//Line count is 625
+
+//NTSC
+//Line time is 63.49
+//
+
 static uint32_t zero = 0;
 
+//Setup a dma channel to overwrite the entire osd with 0's
 static void rageMemsetInit(void)
 {
     DMA_InitTypeDef DMA_InitStructure;
@@ -29,6 +50,7 @@ static void rageMemsetInit(void)
     DMA_Init(DMA1_Channel1, &DMA_InitStructure);
 }
 
+//Start the osd clearing dma transfer
 static __inline void rageMemset(void)
 {
     DMA1_Channel1->CCR &= (uint16_t) (~DMA_CCR1_EN);
@@ -43,7 +65,7 @@ static __inline void rageMemset(void)
 
 static __inline int osdPixelOffset(int x, int y)
 {
-    return (OSD_WIDTH * y + x) >> 3;
+    return (OSD_HRES * y) + (x >> 3);
 }
 
 static __inline void scanlineMod8(int offset, int span, int color)
@@ -74,7 +96,8 @@ void osdDrawPixel(int x, int y, int color)
 {
     int offset;
 
-    if ((x >= OSD_WIDTH) || (y >= osdData.Height) || x < 0 || y < 0)
+    //Clip out of range
+    if ((x >= OSD_WIDTH_MAX ) || (y >= OSD_HEIGHT_MAX) || x < 0 || y < 0)
         return;
 
     offset = osdPixelOffset(x, y);
@@ -133,8 +156,12 @@ void osdDrawVerticalLine(int x, int y, int height, int color)
     int start = x & 0x7;
     uint8_t mask = 1 << (7 - start);
 
-    if (y + height > osdData.Height)
-        height = osdData.Height - y;
+#if 0
+    if ( y >= OSD_HEIGHT_MAX )
+    	return;
+    if (y + height > OSD_HEIGHT_MAX)
+        height = OSD_HEIGHT_MAX - y;
+#endif
 
     while (height--) {
         if (color)
@@ -329,7 +356,7 @@ void osdDrawCharacter(int character, int fontType)
     ptr++;                      // skip character index (todo: check availability, if not replace with blank)
     osd_cursor_X += *ptr;       // font width
     
-    if ((osd_cursor_X > OSD_WIDTH - 1 - *ptr) || (osd_cursor_Y > osdData.Height - 1 - fontHeight) || osd_cursor_X < 0 || osd_cursor_Y < 0)
+    if ((osd_cursor_X > OSD_WIDTH_MAX - 1 - *ptr) || (osd_cursor_Y > OSD_HEIGHT_MAX - 1 - fontHeight) || osd_cursor_X < 0 || osd_cursor_Y < 0)
         return;
 
     ptr += 2;                   // skip font width, height to character data
@@ -371,7 +398,6 @@ void osdDrawDecimal(int font, int value, int numberLength, int zeroPadded, int d
     int tmpdiv;
     int i, zero = 0;
     const int powers[] = { 0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 };
-
 
     if (value >= 0) {
         osdDrawCharacter(' ', font);
@@ -419,6 +445,29 @@ void osdDrawDecimal2(int font, int value, int numberLength, int zeroPadded, int 
 }
 
 
+void osdDrawString( int x, int y, int font, const char* line ) {
+	osdSetCursor( x, y );
+
+	for( ; *line; line++ ) {
+		osdDrawCharacter( *line, font );
+	}
+}
+
+
+static void osdFormatPut( void* data, char ch ) {
+	int* font = (int*)data;
+	osdDrawCharacter( ch, *font );
+}
+
+void osdDrawFormat( int x, int y, int font, const char* fmt, ... ) {
+	osdSetCursor( x, y );
+
+	va_list va;
+    va_start(va, fmt);
+    formatOutput( osdFormatPut, &font, fmt, va );
+    va_end(va);
+}
+
 /*
  * Hardware stuff
  */
@@ -437,7 +486,8 @@ void osdInit(void)
     SPI_InitTypeDef spi;
     TIM_OCInitTypeDef timoc;
 
-    // turn on peripherals. we're using DMA1, SPI1, TIM1 here
+    // turn on peripherals. we're using SPI1, SPI2, TIM1 and TIM3 here
+    // DMA1 has already been enabled from main
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_TIM1, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2 | RCC_APB1Periph_TIM3, ENABLE);
 
@@ -467,7 +517,6 @@ void osdInit(void)
     spi.SPI_NSS = SPI_NSS_Soft;
     spi.SPI_FirstBit = 0;
     spi.SPI_CRCPolynomial = 0;
-    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8;
     SPI_Init(OSD_SPI, &spi);
     SPI_Cmd(OSD_SPI, ENABLE);
 
@@ -513,10 +562,6 @@ void osdInit(void)
     spi.SPI_CPOL = SPI_CPOL_Low;
     spi.SPI_CPHA = SPI_CPHA_1Edge;
     spi.SPI_NSS = SPI_NSS_Soft;
-    // spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2; 
-    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8; // 400 pixels on x axis
-    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4; // ~800 pixels on x axis
-    //spi.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; // ~200 pixels on x axis
     spi.SPI_FirstBit = 0;
     spi.SPI_CRCPolynomial = 0;
     SPI_Init(OSDBW_SPI, &spi);
@@ -548,34 +593,64 @@ void osdInit(void)
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &gpio);
 
+    //Nothing triggered on here just for reading out
     gpio.GPIO_Pin = GPIO_Pin_8; // TIM4 CH3 VSYNC
     gpio.GPIO_Mode = GPIO_Mode_IPD;
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOB, &gpio);
 
     // OSD Timer (TIM1@72MHz)
+    //This starts counting when hsync starts
     TIM_TimeBaseStructInit(&tim);
     tim.TIM_Period = 0xFFFF;
+    tim.TIM_Period = 2 * cfg.clockDivider * cfg.delayX;
     tim.TIM_Prescaler = 0;
     tim.TIM_ClockDivision = TIM_CKD_DIV1;
     tim.TIM_CounterMode = TIM_CounterMode_Up;
     TIM_TimeBaseInit(TIM1, &tim);
 
     // reset timer on each edge (HSYNC)
-    TIM_SelectInputTrigger(TIM1, TIM_TS_TI1FP1);
-    TIM_ETRConfig(TIM1, TIM_ExtTRGPSC_OFF, TIM_ExtTRGPolarity_NonInverted, 50);
-    TIM_SelectSlaveMode(TIM1, TIM_SlaveMode_Reset);
-    TIM_ITConfig(TIM1, TIM_IT_CC1, ENABLE);
-    
-    // set compare value
-    TIM_SetCompare1(TIM1, 80); // shift left/right osd screen. timing depended from irq handler
+    TIM_SelectInputTrigger(TIM1, TIM_TS_TI1FP1 );
+    TIM_ETRConfig(TIM1, TIM_ExtTRGPSC_OFF, TIM_ExtTRGPolarity_NonInverted, 2 );
+    //Whenever my trigger goes, reset the timer and start it
+//    TIM_SelectSlaveMode(TIM1, TIM_SlaveMode_Reset );
+    TIM_SelectSlaveMode(TIM1, TIM_SlaveMode_Trigger );
+    ///Do  single pulse when this update it triggers tim3
+    TIM_SelectOnePulseMode( TIM1, TIM_OPMode_Single );
+    //Do a single counter and wait till next trigger
+    TIM_SetCompare1(TIM1, cfg.clockDivider * cfg.delayX );
 
+    //Setup output 1 to be the master trigger for my slaves
+//    TIM_SelectOutputTrigger( TIM1, TIM_TRGOSource_Update );
+    TIM_SelectOutputTrigger( TIM1, TIM_TRGOSource_OC1 );
+
+    //Generate an irq when you hit compare 1
+//    TIM_ITConfig(TIM1, TIM_IT_CC1, ENABLE);
+//    TIM_ITConfig(TIM1, TIM_IT_CC2, ENABLE);
+//    TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);
+    //Generate an irq when TIM1 gets triggered by hsync
+    TIM_ITConfig(TIM1, TIM_IT_Trigger, ENABLE);
+    
+    //Enable the IRQ for TIM1 counter compare
     nvic.NVIC_IRQChannel = TIM1_CC_IRQn;
     nvic.NVIC_IRQChannelPreemptionPriority = 0;
     nvic.NVIC_IRQChannelSubPriority = 0;
     nvic.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&nvic);
-    TIM_Cmd(TIM1, ENABLE);
+
+    //Enable IRQ for TIM1 trigger raise
+    nvic.NVIC_IRQChannel = TIM1_TRG_COM_IRQn;
+    nvic.NVIC_IRQChannelPreemptionPriority = 0;
+    nvic.NVIC_IRQChannelSubPriority = 0;
+    nvic.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&nvic);
+
+    //Enable IRQ for TIM1 update raise
+    nvic.NVIC_IRQChannel = TIM1_UP_IRQn;
+    nvic.NVIC_IRQChannelPreemptionPriority = 0;
+    nvic.NVIC_IRQChannelSubPriority = 0;
+    nvic.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&nvic);
 
     // SPI timing GPIO out (TIM3_CH3)
     gpio.GPIO_Pin = GPIO_Pin_0; // TIM3_CH3
@@ -585,23 +660,20 @@ void osdInit(void)
 
     // TIM3C3 clk for SPI1/SPI2 in slave
     TIM_TimeBaseStructInit(&tim);
-    // tim.TIM_Period = 5 - 1;
-    // tim.TIM_Prescaler = (2 - 1);
-    tim.TIM_Prescaler = (1 - 1);   
-    
-                                   // 5  - 14.39885 ~758
-                                   // 6  - 11.99904 ~631
-                                   // 7  - 10.28489 ~541
-                                   // 8  - 8.99928  ~473
-                                   // 9  - 7.99936  ~421 
-    tim.TIM_Period = 10;           // 10 - 7.199424 ~378 NTSC pixels 
-                                   // 11 - 6.54931  ~344 
-                                   // 12 - 5.99952  ~315 
-   
-    tim.TIM_ClockDivision = 0;
+    tim.TIM_Prescaler = 0;
+    tim.TIM_Period = cfg.clockDivider;
+    tim.TIM_ClockDivision = TIM_CKD_DIV1;
     tim.TIM_CounterMode = TIM_CounterMode_Up;
     TIM_TimeBaseInit(TIM3, &tim);
     
+    //internal trigger for TIM3 should be TIM1
+    TIM_SelectInputTrigger( TIM3, TIM_TS_ITR0 );
+    //When tim1 sends it's trigger tim3 starts
+    TIM_SelectSlaveMode( TIM3, TIM_SlaveMode_Trigger );
+    //Better master/slave syncing?
+    TIM_SelectMasterSlaveMode( TIM3, TIM_MasterSlaveMode_Enable );
+
+    //Generate a pwm style on/off ouput on TIM3
     TIM_OCStructInit( &timoc );
     timoc.TIM_OutputState = TIM_OutputState_Enable;
     timoc.TIM_OutputNState = TIM_OutputNState_Disable;
@@ -610,10 +682,9 @@ void osdInit(void)
     timoc.TIM_OCPolarity = TIM_OCPolarity_Low;
     timoc.TIM_OCIdleState = TIM_OCIdleState_Set;
     TIM_OC3Init(TIM3, &timoc );
+
     TIM_OC3PreloadConfig(TIM3, TIM_OCPreload_Enable);
-   // TIM_Cmd(TIM3, ENABLE );
-   
-   
+
    // setup DMA memcpy for LINE
     DMA_StructInit(&dma);
     DMA_DeInit(DMA1_Channel2);
@@ -635,22 +706,24 @@ void osdInit(void)
     memset((void *)osdData.OSD_LINEBW, 0xFF, sizeof(osdData.OSD_LINEBW));  // white only
     memset((void *)osdData.OSD_LINE, 0x00, sizeof(osdData.OSD_LINE));      // last byte must be 0
     osdData.PAL = 0;  // default is NTSC
-    osdData.Height = OSD_HEIGHT_NTSC;
-    
+
     osdData.osdUpdateFlag = CoCreateFlag(0, 0);
 }
-
-
 
 // DMA_OSD (end of pixels line)
 void DMA1_Channel3_IRQHandler(void) 
 {
     CoEnterISR();
+
     if(DMA1->ISR & DMA_ISR_TCIF3) {         // got end of transfer
         OSD_DMA->CCR &= ~DMA_CCR3_EN;
         DMA1->IFCR |= DMA_ISR_TCIF3;
         while(OSD_SPI->SR & SPI_SR_BSY);    // wait SPI for last bits
+
         TIM_Cmd(TIM3, DISABLE);             // shut up my dear sck
+        //Clears flags to allow proper retriggering
+//      TIM_ClearFlag(TIM3, TIM_SR_TIF);
+//		TIM_ClearFlag(TIM1, TIM_SR_CC1IF);
         
         // let fill next line for video out
         DMA1_Channel2->CCR &= (uint16_t) (~DMA_CCR1_EN);
@@ -662,11 +735,32 @@ void DMA1_Channel3_IRQHandler(void)
     CoExitISR();
 }
 
+void TIM1_UP_IRQHandler(void) {
+    CoEnterISR();
+    uint16_t tim1cnt = TIM1->CNT;
+    CoExitISR();
+}
+
+void TIM1_CC_IRQHandler(void) {
+
+    CoEnterISR();
+
+    if (TIM1->SR & TIM_SR_CC1IF) {      // Triggered on tim3 start
+    	TIM_ClearFlag(TIM1, TIM_SR_CC1IF);
+        //Read the counter to see if it worked
+        uint16_t tim1cnt = TIM1->CNT;
+    }
+    if (TIM1->SR & TIM_SR_CC2IF) {      // Triggered on tim3 start
+    	TIM_ClearFlag(TIM1, TIM_SR_CC2IF);
+        //Read the counter to see if it worked
+        uint16_t tim1cnt = TIM1->CNT;
+    }
+    CoExitISR();
+}
 
 // HSYNC
 // PAL/SECAM have 625/50Hz and 288 active, NTSC 525 and 243 (242) active
-void TIM1_CC_IRQHandler(void)
-{
+void TIM1_TRG_COM_IRQHandler(void) {
     int slpos, slmax;
     static int maxline = 0;
     static int inv = 0;
@@ -674,12 +768,14 @@ void TIM1_CC_IRQHandler(void)
 
     CoEnterISR();
 
-    osdData.Height = osdData.PAL ? OSD_HEIGHT_PAL : OSD_HEIGHT_NTSC;
-    slpos = osdData.PAL ? 29 /* 46 */ : 25;      // used for shift up/down area screen
-    slmax = slpos + osdData.Height;
+    slpos = cfg.delayY;
+    slmax = slpos + cfg.height;
 
-    if (TIM1->SR & TIM_SR_CC1IF) {      // capture interrupt
-        TIM_ClearFlag(TIM1, TIM_FLAG_CC1);
+    if (TIM1->SR & TIM_SR_TIF) {      // Triggered on start of hsync
+     	//Enable tim3 already but it should wait for it's gate
+    	TIM_ClearFlag( TIM1, TIM_SR_TIF );
+
+        //Check if we're in vsync
         if (!(GPIOB->IDR & GPIO_Pin_8) && (osdData.currentScanLine > 200)) {    // wait VSYNC
             // Note: got max 309-314 for PAL and must be 264 and more in NTSC
             if (maxline < osdData.currentScanLine)
@@ -691,7 +787,7 @@ void TIM1_CC_IRQHandler(void)
             maxline = 0;
         } else if (GPIOA->IDR & GPIO_Pin_8) {   // check HSYNC
             osdData.currentScanLine++;
-            
+            //Check if we're in the active video output stage yet
             if (osdData.currentScanLine >= slpos && osdData.currentScanLine <= slmax - 1) {
                 line = osdData.currentScanLine - slpos;
                 osdData.ptrOSD_RAM = (uint8_t *)&osdData.OSD_RAM[OSD_HRES * line];
@@ -707,8 +803,7 @@ void TIM1_CC_IRQHandler(void)
 				OSDBW_DMA->CNDTR = OSD_HRES + 1;
                 OSDBW_DMA->CCR |= DMA_CCR1_EN;
 					  
-				// start video out
-                TIM_Cmd(TIM3, ENABLE);
+				// enable tim3, should wait for it's trigger input
             }
 
             // first line pre-fill, next will be filled in DMA irq
@@ -727,8 +822,7 @@ void TIM1_CC_IRQHandler(void)
                 DMA1_Channel1->CCR &= (uint16_t)(~DMA_CCR1_EN);
                 DMA1_Channel1->CMAR = (uint32_t)&osdData.OSD_RAM[OSD_HRES * line]; 
                 DMA1_Channel1->CNDTR = OSD_HRES;
-                if (inv) 
-                    DMA1_Channel1->CCR |= DMA_CCR1_EN; 
+                DMA1_Channel1->CCR |= DMA_CCR1_EN;
             }	
 
             // we have last line in frame?
@@ -737,11 +831,12 @@ void TIM1_CC_IRQHandler(void)
                 if (inv) {      // no need to redraw each frame
                     //osdClearScreen();
                     isr_SetFlag(osdData.osdUpdateFlag);   // redraw after even frame
-                    } else {
-                    isr_SetFlag(osdData.osdRecalcFlag);   // recalc after odd frame
+                } else {
+//                    isr_SetFlag(osdData.osdRecalcFlag);   // recalc after odd frame
                }
             }
         }
     }
     CoExitISR();
 }
+

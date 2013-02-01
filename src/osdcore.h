@@ -1,25 +1,23 @@
 #pragma once
 
-#define OSD_WIDTH   352
+#define OSD_WIDTH_MAX   352
+#define OSD_HEIGHT_MAX 275
 
-#define OSD_HEIGHT_NTSC 240
-#define OSD_HEIGHT_PAL 288
-#define OSD_HEIGHT OSD_HEIGHT_PAL
-
-#define OSD_HRES    (OSD_WIDTH / 8)
-#define OSD_VRES OSD_HEIGHT
+#define OSD_HRES (OSD_WIDTH_MAX / 8)
+#define OSD_VRES OSD_HEIGHT_MAX
 
 typedef struct {
+    uint16_t currentScanLine;
+    uint16_t maxScanLine;
+//    uint16_t Height;                // depend from PAL. OSD_HEIGHT_PAL or OSD_HEIGHT_NTSC
+
     volatile uint8_t OSD_RAM[OSD_HRES * OSD_VRES];
     volatile uint8_t OSD_LINE[OSD_HRES + 1];
     volatile uint8_t OSD_LINEBW[OSD_HRES + 1];
     OS_FlagID osdUpdateFlag;
-    OS_FlagID osdRecalcFlag;
-    uint16_t currentScanLine;
-    uint16_t maxScanLine;
+//    OS_FlagID osdRecalcFlag;
     uint8_t PAL;                    // PAL or NTSC
     uint8_t *ptrOSD_RAM;            // current pos in OSD_RAM for DMA irq refresh
-    uint16_t Height;                // depend from PAL. OSD_HEIGHT_PAL or OSD_HEIGHT_NTSC  
 } osdData_t;
 
 //! Bitmask for drawing circle octant 0.
@@ -62,5 +60,8 @@ void osdSetCursor(int x, int y);
 void osdDrawCharacter(int character, int fontType);
 void osdDrawDecimal(int font, int value, int numberLength, int zeroPadded, int decimalPos);
 void osdDrawDecimal2(int font, int value, int numberLength, int zeroPadded, int decimalPos);
+
+void osdDrawString( int x, int y, int font, const char* test );
+void osdDrawFormat( int x, int y, int font, const char* fmt, ... );
 
 extern osdData_t osdData;

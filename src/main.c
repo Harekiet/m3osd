@@ -100,6 +100,12 @@ void setup(void)
     TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
     TIM_TimeBaseInit(TIM4, &TIM_TimeBaseStructure);
     TIM_Cmd(TIM4, ENABLE);
+
+    //Stop counters from counting when breakpoints are triggered
+    DBGMCU_Config( DBGMCU_TIM1_STOP, ENABLE );
+    DBGMCU_Config( DBGMCU_TIM2_STOP, ENABLE );
+    DBGMCU_Config( DBGMCU_TIM3_STOP, ENABLE );
+    DBGMCU_Config( DBGMCU_TIM4_STOP, ENABLE );
 }
 
 // microsecond delay using TIM4
@@ -117,8 +123,8 @@ void timerDelay(uint16_t us)
 
 void osdHorizon(void)
 {
-    int x_dim = OSD_WIDTH;        // Number of screen pixels along x axis
-    int y_dim = osdData.Height;   // Number of screen pixels along y axis
+    int x_dim = cfg.width;        // Number of screen pixels along x axis
+    int y_dim = cfg.height;   // Number of screen pixels along y axis
     int L = 79+25;                // Length of main horizon line indicator
     int l = 10;                   // Length of small angle indicator lines
     // float theta_max = 42.5 * (M_PI / 180);        // Max pitch angle displayed on screen
@@ -130,7 +136,6 @@ void osdHorizon(void)
     signed char a_a[36] = { 0, };
     float pitch;
     float roll;
-    float d1, d2, alpha1, alpha2;
     int i, idx = 0;
     int flag = 5;               // was 7
     int x_c2, y_c2;
@@ -149,8 +154,8 @@ void osdHorizon(void)
     y_c2 = y_dim / 2 * (1 - pitch / theta_max) + cosroll * flag;
 
     for (i = 10; i <= 90; i += 10) {
-        d1 = sqrtf(17 * 17 + powf(i * M_PI / 180.0f / theta_max * y_dim / 2, 2));
-        alpha1 = atan2f((i * M_PI / 180.0f / theta_max * y_dim / 2), 17);
+        float d1 = sqrtf(17 * 17 + powf(i * M_PI / 180.0f / theta_max * y_dim / 2, 2));
+        float alpha1 = atan2f((i * M_PI / 180.0f / theta_max * y_dim / 2), 17);
         // d2 = sqrtf(50 * 50 + powf(i * M_PI / 180 / theta_max * y_dim / 2, 2));
         // alpha2 = atanf((i * M_PI / 180 / theta_max * y_dim / 2) / 50);
 
@@ -200,26 +205,6 @@ void osdHorizon(void)
     osdDrawLine(x_c2 - L2 * cosroll, y_c2 - L2 * -sinroll, x_c2 + L2 * cosroll, y_c2 + L2 * -sinroll, 1, 0);
 }
 
-//const char *string =  "QWERTYUIOPASDFGHJKLZXVBNM";
-//const char *string =   "ABCDEFGHIJKL";
-//const char *string =   "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const char *string = "ABCDEFGHIJKLMNOPQRSTU";
-const char *stringl = "abcdefghijklmnopqrstu";
-
-/*
-  	 ! 	" 	# 	$ 	 % 	& 	' 	( 	) 	* 	+ 	, 	— 	. 	/
-3. 	0 	1 	2 	3 	4 	5 	6 	7 	8 	9 	 : 	 ; 	< 	= 	> 	 ?
-4. 	@ 	A 	B 	C 	D 	E 	F 	G 	H 	I 	J 	K 	L 	M 	N 	O
-5. 	P 	Q 	R 	S 	T 	U 	V 	W 	X 	Y 	Z 	[ 	\ 	] 	^ 	_
-6. 	` 	a 	b 	c 	d 	e 	f 	g 	h 	i 	j 	k 	l 	m 	n 	o
-7. 	p 	q 	r 	s 	t 	u 	v 	w 	x 	y 	z 	{ 	| 	} 	~ 	DEL
-*/
-
-const char *numbers = "0123456789:;<=>?";
-const char *numbers2 = "!\"#$%&'()*+,-./_\\{}|~`";
-const char *gay = "GAY BASINGSTOKE";
-const char *huh = "HELLOW PAL";
-
 #define MAIN_STACK_SIZE 512
 OS_STK mainStack[MAIN_STACK_SIZE];
 
@@ -227,20 +212,26 @@ void mainTask(void *unused)
 {
     int i;
     int offset, head, alt;
+    const int width = cfg.width;
+    const int halfWidth = width >> 1;
+    const int height = cfg.height;
+    const int halfHeight = height / 2;
 
     while (1) {
         CoWaitForSingleFlag(osdData.osdUpdateFlag, 0);
         CoClearFlag(osdData.osdUpdateFlag);
         LED1_TOGGLE;
         
-       // osdDrawRectangle(0, 0, OSD_WIDTH, osdData.Height, 1);
-
+        //Show a debug rectangle around the screen
+        if ( 1 || cfg.showBorder ) {
+//        	osdDrawRectangle(0, 0, width, height, 1);
+        }
         osdHorizon();
 
         // heading 
-        osdDrawHorizontalLine(OSD_WIDTH/2 - 100, 14, 190, 1);
+        osdDrawHorizontalLine( halfWidth - 100, 14, 190, 1);
         // osdDrawVerticalLine(200,10,12,1);
-        osdSetCursor(OSD_WIDTH/2 - 3, 12);
+        osdSetCursor( halfWidth - 3, 12);
         //osdDrawCharacter(247+32,4);
         //osdDrawCharacter(253+32,4);
         osdDrawCharacter(95 + 32, FONT_16PX_FIXED);
@@ -248,53 +239,52 @@ void mainTask(void *unused)
             head = multiwiiData.heading;
             offset = head % 10;
             //if (!(i % 5)) 
-            osdDrawVerticalLine(OSD_WIDTH/2 - 100 + i - offset, 9, 5, 1);
+            osdDrawVerticalLine( halfWidth - 100 + i - offset, 9, 5, 1);
             //else 
             //    osdDrawVerticalLine(100 + i - offset, 9 + 3, 2, 1);
 
             switch (head - offset - 100 + i) {
             case 0:
-                osdSetCursor(OSD_WIDTH/2 - 100 + i - offset - 3, 0);
+                osdSetCursor( halfWidth - 100 + i - offset - 3, 0);
                 osdDrawCharacter('N', FONT_8PX_FIXED);
                 break;
             case 90:
-                osdSetCursor(OSD_WIDTH/2 - 100 + i - offset - 3, 0);
+                osdSetCursor( halfWidth - 100 + i - offset - 3, 0);
                 osdDrawCharacter('E', FONT_8PX_FIXED);
                 break;
             case 180:
             case -180:
-                osdSetCursor(OSD_WIDTH/2 - 100 + i - offset - 3, 0);
+                osdSetCursor( halfWidth - 100 + i - offset - 3, 0);
                 osdDrawCharacter('S', FONT_8PX_FIXED);
                 break;
             case -90:
-                osdSetCursor(OSD_WIDTH/2 - 100 + i - offset - 3, 0);
+                osdSetCursor( halfWidth - 100 + i - offset - 3, 0);
                 osdDrawCharacter('W', FONT_8PX_FIXED);
                 break;
             }
 
         }
-        osdSetCursor(OSD_WIDTH / 2 - 2 * 8, 25);
+        osdSetCursor( halfWidth - 2 * 8, 25);
         osdDrawDecimal(FONT_16PX_FIXED, multiwiiData.heading, 3, 0, -1);
 
 
-
         // altitude
-        osdDrawVerticalLine(OSD_WIDTH - 100 + 20 + 12, osdData.Height / 2 - 140 / 2 - 3, 160, 1);
-        osdSetCursor(OSD_WIDTH - 100 - 1 + 24, osdData.Height / 2 - 10);
+        osdDrawVerticalLine( width - 100 + 20 + 12, halfHeight - 140 / 2 - 3, 160, 1);
+        osdSetCursor( width - 100 - 1 + 24, halfHeight - 10);
         // osdDrawCharacter(239+32,4);
         osdDrawCharacter(249 + 32, FONT_16PX_FIXED);
         for (i = 50; i < 210; i += 10) {
             alt = multiwiiData.altitude / 100;
             //alt = multiwiiData.GPS_altitude;
             offset = alt % 10;
-            osdDrawHorizontalLine(OSD_WIDTH - 100 + 20 + 12, osdData.Height / 2 - 50 - 140 / 2 + i + offset - 3, 5, 1);
+            osdDrawHorizontalLine( width - 100 + 20 + 12, halfHeight - 50 - 140 / 2 + i + offset - 3, 5, 1);
             if (!((alt - offset + 120 - i) % 20) && (alt - offset + 120 - i + 10 < alt || alt - offset + 120 - i - 10 > alt)) {
-                osdSetCursor(OSD_WIDTH - 90 + 24, osdData.Height / 2 - 50 - 140 / 2 + i + offset - 6);
+                osdSetCursor( width - 90 + 24, halfHeight - 50 - 140 / 2 + i + offset - 6);
                 osdDrawDecimal(FONT_8PX_FIXED, alt - offset + 120 - i, 5, 0, 5);
             }
 
         }
-        osdSetCursor(OSD_WIDTH - 98 + 20 + 12, osdData.Height / 2 - 10);
+        osdSetCursor( width - 98 + 20 + 12, halfHeight - 10);
         //osdDrawDecimal(4, multiwiiData.GPS_altitude, 4, 0, 4);
         osdDrawDecimal(4, multiwiiData.altitude, 5, 0, 2);
 
@@ -306,12 +296,12 @@ void mainTask(void *unused)
          */
 
         if (osdData.PAL) {
-            osdSetCursor(OSD_WIDTH - 8 * 8 - 1, 0);
+            osdSetCursor( width - 8 * 8 - 1, 0);
             osdDrawCharacter('P', FONT_8PX_FIXED);
             osdDrawCharacter('A', FONT_8PX_FIXED);
             osdDrawCharacter('L', FONT_8PX_FIXED);
         } else {
-            osdSetCursor(OSD_WIDTH - 8 * 8 - 1, 0);
+            osdSetCursor( width - 8 * 8 - 1, 0);
             osdDrawCharacter('N', FONT_8PX_FIXED);
             osdDrawCharacter('T', FONT_8PX_FIXED);
             osdDrawCharacter('S', FONT_8PX_FIXED);
@@ -353,8 +343,6 @@ void mainTask(void *unused)
         osdDrawDecimal2(FONT_8PX_FIXED, abs(multiwiiData.GPS_homeLON), 9, 1, 7);
 
 
-
-
         osdSetCursor(3, 50 + 16 * 2);
         osdDrawCharacter('A', FONT_16PX_FIXED);
         osdDrawCharacter('l', FONT_16PX_FIXED);
@@ -388,50 +376,40 @@ void mainTask(void *unused)
         osdDrawCharacter('D', FONT_16PX_FIXED);
         osdDrawDecimal(FONT_16PX_FIXED, multiwiiData.GPS_directionToHome, 5, 0, 5);   // ??
 
+       //Draw some voltages
+        {
+        	const int x = 20;
+        	const int cellCount = sensorData.batteryData.numCells < 6 ? sensorData.batteryData.numCells : 0;
+        	int y = height - 17 - cellCount * 16;
+        	float total = 0;
+        	//Draw the seperate cells
+        	for ( int c = 0; c < cellCount; c++, y += 16 ) {
+        		float v = sensorData.batteryData.voltage[c];
+        		total += v;
+        		osdDrawFormat( x, y, FONT_16PX_FIXED, "%d %5.2fV", c, v );
+        	}
+        	//Draw total
+    		osdDrawFormat( x, y, FONT_16PX_FIXED, "T %5.2fV", total );
+        }
 
 
-        osdSetCursor(0, osdData.Height - 2 * 16 - 1);
-        osdDrawDecimal2(FONT_16PX_FIXED, 1260, 5, 0, 2);
-        osdDrawCharacter('V', FONT_16PX_FIXED);
-        osdDrawDecimal2(FONT_16PX_FIXED, 1234, 5, 0, 2);
-        osdDrawCharacter('A', FONT_16PX_FIXED);
-
-
-        osdSetCursor(0, osdData.Height - 1 * 16 - 1);
-        osdDrawDecimal2(FONT_16PX_FIXED, 1234, 5, 0, 5);
-        osdDrawCharacter('M', FONT_16PX_FIXED);
-        osdDrawCharacter('a', FONT_16PX_FIXED);
-        osdDrawCharacter('h', FONT_16PX_FIXED);
-
-/*
-        osdSetCursor(50, 30);
-        osdDrawDecimal(2, sensorData.batteryData.voltage[0] * 100, 3, 1, 2);
-        osdDrawCharacter('V', 2);
-        osdSetCursor(50, 56);
-        osdDrawDecimal(2, sensorData.volts * 100, 4, 1, 2);
-        osdDrawCharacter('V', 2);
-*/
         osdSetCursor(50, 185);
         osdDrawDecimal(FONT_8PX_PROP, multiwiiData.anglePitch, 3, 0, 1);
         osdSetCursor(80, 185);
         osdDrawDecimal(FONT_8PX_PROP, multiwiiData.angleRoll, 3, 0, 1);
-/*				
-				osdSetCursor(50, 200);
-        osdDrawDecimal(1, multiwiiData.anglePitch, 5, 0, 3);
-        osdSetCursor(80, 200);
-        osdDrawDecimal(1, multiwiiData.angleRoll, 5, 0, 3);
-				*/
 
-        CoTickDelay(5);
+//        CoTickDelay(5);
     }
 }
 
+
+
 int main(void)
 {
-    int i = 0, j = 0, q = 0;
-    int x = 0, y = 0, xdir = 1, ydir = 1;
-
     setup();
+    //Load the current config
+    configLoad();
+
     CoInitOS();
 
     USB_Renumerate();
@@ -447,118 +425,4 @@ int main(void)
     CoCreateTask(mainTask, 0, 10, &mainStack[MAIN_STACK_SIZE - 1], MAIN_STACK_SIZE);
     // minCycles = 99999999;
     CoStartOS();
-
-#if 0
-    for (i = 0; i < strlen(numbers); i++)
-        osdDrawCharacter(numbers[i], 0);
-
-
-    for (j = 0; j < 20; j++) {
-        osdSetCursor(0 + j * (rand() % 3), 10 + j * 8);
-
-        for (i = 0; i < strlen(string); i++)
-            osdDrawCharacter(string[i], 1);
-    }
-
-    for (j = 0; j < 10; j++) {
-        osdSetCursor(32 + j * (rand() % 3), 80 + j * 8);
-        for (i = 0; i < strlen(string); i++)
-            osdDrawCharacter(string[i], 2);
-    }
-
-    for (j = 0; j < 20; j++) {
-        osdSetCursor(200 + j * (rand() % 3), 10 + j * 8);
-
-        for (i = 0; i < strlen(string); i++)
-            osdDrawCharacter(string[i], 1);
-    }
-
-    osdSetCursor(20, 50);
-    osdDrawDecimal(2, 99999, 5, 1, 2);
-    osdDrawCharacter('V', 2);
-
-    osdSetCursor(20, 80);
-    osdDrawDecimal(2, 1234, 6, 1, 2);
-    // mainvector();
-    // osdDrawPixel(0, 0, 1);
-    // osdDrawPixel(100, 0, 1);
-    // osdDrawPixel(200, 0, 1);
-
-    x = 200;
-    y = 100;
-
-    i = 0;
-    j = 0;
-    q = 0;
-
-    while (1) {
-        // wait for vsync
-        LED0_ON;
-        CoTickDelay(10);
-        // CoWaitForSingleFlag(osdData.osdUpdateFlag, 0); // wait forever
-        LED0_OFF;
-        CoClearFlag(osdData.osdUpdateFlag);
-        osdClearScreen();
-
-        osdSetCursor(50, 20);
-        osdDrawDecimal(2, multiwiiData.altitude, 5, 0, 2);
-
-        osdSetCursor(50, 30);
-        osdDrawDecimal(2, sensorData.batteryData.voltage[0] * 100, 3, 1, 2);
-        osdDrawCharacter('V', 2);
-        osdSetCursor(50, 56);
-        osdDrawDecimal(2, sensorData.volts * 100, 4, 1, 2);
-        osdDrawCharacter('V', 2);
-
-        osdSetCursor(50, 180);
-        osdDrawDecimal(1, multiwiiData.anglePitch, 5, 0, 3);
-        osdSetCursor(80, 180);
-        osdDrawDecimal(1, multiwiiData.angleRoll, 5, 0, 3);
-
-        // artificial horizon
-        // osdHorizon(); 
-        // osdDrawLine(100, 100 - multiwiiData.anglePitch + multiwiiData.angleRoll, 300, 100 - multiwiiData.anglePitch - multiwiiData.angleRoll, 1);
-        // osdSetCursor(10, 20);
-        // osdDrawDecimal(1, , 6, 0, 2);
-
-        osdDrawHorizontalLine(100, 10, 200, 1);
-        j = 0;
-        for (i = 0; i < 200; i += 10) {
-            int offset = (multiwiiData.heading % 10) * 2;
-            osdDrawVerticalLine(100 + i + offset, 10, j ? 10 : 5, 1);
-            j = !j;
-        }
-
-#if 1
-        // osdDrawRectangle(0, 0, 399, 199, 1);
-
-        if (x > 399)
-            xdir = -1;
-        if (x < 1)
-            xdir = 1;
-        if (y > 170)
-            ydir = -1;
-        if (y < 20)
-            ydir = 1;
-
-        x += xdir;
-        y += ydir;
-
-        osdDrawRectangle(x - 4, y - 4, 8, 8, 1);
-#if 0
-        osdDrawFilledCircle(x, y, 16, 1, 0xFF);
-        if (q++ >> 4 & 1)
-            osdDrawFilledCircle(x, y, 8, 0, GFX_QUADRANT0 | GFX_QUADRANT2);
-        else
-            osdDrawFilledCircle(x, y, 8, 0, GFX_QUADRANT1 | GFX_QUADRANT3);
-#endif
-        // osdSetCursor(x, y);
-        // osdDrawDecimal(2, i, 5, 1, 2);
-
-        // osdSetCursor(20, 30);
-        // osdDrawDecimal(2, 137, 5, 0, 2);
-        // i++;
-#endif
-    }
-#endif
 }
