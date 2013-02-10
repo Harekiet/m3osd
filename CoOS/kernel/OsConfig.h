@@ -32,7 +32,7 @@ Defines the lowest priority that be assigned.
 /*!< 
 Max number of tasks that can be running.		     
 */			
-#define CFG_MAX_USER_TASKS      (8)
+#define CFG_MAX_USER_TASKS      (4)
 
 /*!< 
 Idle task stack size(word).		                         
@@ -117,7 +117,7 @@ Enable(1) or disable(0) CoAwakeTask() and CoSuspendTask() API.
 /*!< 
 Enable(1) or disable(0) parameter checkout .		  
 */
-#define CFG_PAR_CHECKOUT_EN     (1)	
+#define CFG_PAR_CHECKOUT_EN     (0)
 
 /*!< 
 Enable(1) or disable(0) stack overflow checkout .  	  
@@ -258,7 +258,7 @@ Max number of mutex.(must be less than 255).
 /*!< 
 Enable(1) or disable(0) utility management.    	  
 */
-#define CFG_UTILITY_EN          (1)      
+#define CFG_UTILITY_EN          (0)
    
 #if CFG_UTILITY_EN >0
 

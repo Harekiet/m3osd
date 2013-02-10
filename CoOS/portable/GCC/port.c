@@ -20,9 +20,9 @@
 //******************************************************************************
 //                              EQUATES
 //******************************************************************************	
-U32 NVIC_INT_CTRL  = 0xE000ED04;            // Interrupt control state register
-U32 NVIC_PENDSVSET = 0x10000000;            // Value to trigger PendSV exception
-U32 INT_EXIT       = 0xFFFFFFFC;
+const U32 NVIC_INT_CTRL  = 0xE000ED04;            // Interrupt control state register
+const U32 NVIC_PENDSVSET = 0x10000000;            // Value to trigger PendSV exception
+const U32 INT_EXIT       = 0xFFFFFFFC;
 
 //******************************************************************************
 //                         PUBLIC FUNCTIONS
