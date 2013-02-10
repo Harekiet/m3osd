@@ -377,11 +377,8 @@ static uint8_t _class;
 
 // do we have new position information?
 static bool _new_position;
-
 // do we have new speed information?
 static bool _new_speed;
-
-static uint8_t _disable_counter;
 
 // Receive buffer
 static union {

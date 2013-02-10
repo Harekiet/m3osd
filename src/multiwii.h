@@ -21,17 +21,17 @@ typedef struct {
     int altitude;
 
     // IMU GPS data
-    uint8_t GPS_FIX;
-    uint8_t GPS_numSat;
     int32_t GPS_LAT;
     int32_t GPS_LON;
-    int16_t GPS_altitude;       // altitude in 0.1m
-    int16_t GPS_speed;          // speed in 0.1m/s
-    uint8_t GPS_update;         // New data signalisation to GPS functions
-    uint16_t GPS_distanceToHome;
-    uint16_t GPS_directionToHome;
     int32_t GPS_homeLAT;
     int32_t GPS_homeLON;
+    int16_t GPS_altitude;       // altitude in 0.1m
+    int16_t GPS_speed;          // speed in 0.1m/s
+    uint16_t GPS_distanceToHome;
+    uint16_t GPS_directionToHome;
+    uint8_t GPS_FIX;
+    uint8_t GPS_numSat;
+    uint8_t GPS_update;         // New data signalisation to GPS functions
 
 } multiwiiData_t;
 

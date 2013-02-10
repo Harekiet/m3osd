@@ -51,6 +51,7 @@
 #include <CoOS.h>
 #include "libfunctions.h"
 #include "libformat.h"
+#include "config.h"
 
 #include "stm32f10x_conf.h"
 #include "core_cm3.h"
@@ -79,42 +80,11 @@
 
 void timerDelay(uint16_t us);
 
-//config.c
 
-typedef struct {
-	//16bit crc of all the following data based on the size
-    uint16_t crc16;
-    //Size of the entire config structure
-	uint16_t size;
 
-	uint32_t gpsBaudrate;
 
-	//osd visible height
-	uint16_t height;
-	//osd visible width
-	uint16_t width;
 
-	//Delay in pixels
-	uint16_t delayX;
-	//Delay in lines
-	uint16_t delayY;
 
-	//72mhz / divider for twice the pixel clock
-	uint8_t clockDivider;
-	//Show a border around the visible screen
-	uint8_t showBorder;
 
-	//Version of the current configuration as an extra check that has to match
-	uint8_t version;
-} Config_t;
-
-extern Config_t cfg;
-
-//Reset to default settings and save those
-void configReset();
-//Just save the current settings
-void configSave();
-//Reload the settings ignore any changes
-void configLoad();
 
 

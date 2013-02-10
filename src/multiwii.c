@@ -1,9 +1,14 @@
 #include "board.h"
 #include "uart.h"
 #include "multiwii.h"
+#include "cli.h"
 
 #define MULTIWII_STACK_SIZE 128
-OS_STK multiwiiStack[MULTIWII_STACK_SIZE];
+OS_STK multiwiiStack[MULTIWII_STACK_SIZE] __attribute__ ((aligned (8)));
+
+//Is the cli active or not
+static uint8_t cliActive = 0;
+
 multiwiiData_t multiwiiData;
 
 static const uint8_t MSP_HEADER[3] = { 0x24, 0x4D, 0x3C };
@@ -99,10 +104,7 @@ void parseMSP(void)
     }
 }
 
-int receiveMSP(void)
-{
-    uint8_t c;
-
+static void receiveMSP( uint8_t c) {
     static enum _serial_state {
         IDLE,
         HEADER_START,
@@ -112,38 +114,37 @@ int receiveMSP(void)
         HEADER_CMD,
     } c_state = IDLE;
 
-    if (uartAvailable(multiwiiData.serial)) {
-        c = uartRead(multiwiiData.serial);
-
-        if (c_state == IDLE) {
-            c_state = (c == '$') ? HEADER_START : IDLE;
-        } else if (c_state == HEADER_START) {
-            c_state = (c == 'M') ? HEADER_M : IDLE;
-        } else if (c_state == HEADER_M) {
-            c_state = (c == '>') ? HEADER_ARROW : IDLE;
-        } else if (c_state == HEADER_ARROW) {
-            if (c > MSP_BUFFER_SIZE) {  // now we are expecting the payload size
-                c_state = IDLE;
-            } else {
-                multiwiiData.dataSize = c;
-                c_state = HEADER_SIZE;
-            }
-        } else if (c_state == HEADER_SIZE) {
-            c_state = HEADER_CMD;
-            multiwiiData.cmdMSP = c;
-        } else if (c_state == HEADER_CMD) {
-            multiwiiData.buffer[multiwiiData.rxIndex++] = c;
-            if (multiwiiData.rxIndex >= multiwiiData.dataSize) {
-                multiwiiData.rxIndex = 0;
-                multiwiiData.mspParseOK = 1;
-                c_state = IDLE;
-            }
-            if (multiwiiData.mspParseOK)
-                parseMSP();
-        }
-        return 1;
-    }
-    return 0;
+	if (c_state == IDLE) {
+		if ( c == '$' ) {
+			c_state = HEADER_START;
+		} else if ( c == '#' ) {
+			cliStart();
+			cliActive = 1;
+		}
+	} else if (c_state == HEADER_START) {
+		c_state = (c == 'M') ? HEADER_M : IDLE;
+	} else if (c_state == HEADER_M) {
+		c_state = (c == '>') ? HEADER_ARROW : IDLE;
+	} else if (c_state == HEADER_ARROW) {
+		if (c > MSP_BUFFER_SIZE) {  // now we are expecting the payload size
+			c_state = IDLE;
+		} else {
+			multiwiiData.dataSize = c;
+			c_state = HEADER_SIZE;
+		}
+	} else if (c_state == HEADER_SIZE) {
+		c_state = HEADER_CMD;
+		multiwiiData.cmdMSP = c;
+	} else if (c_state == HEADER_CMD) {
+		multiwiiData.buffer[multiwiiData.rxIndex++] = c;
+		if (multiwiiData.rxIndex >= multiwiiData.dataSize) {
+			multiwiiData.rxIndex = 0;
+			multiwiiData.mspParseOK = 1;
+			c_state = IDLE;
+		}
+		if (multiwiiData.mspParseOK)
+			parseMSP();
+	}
 }
 
 static void multiwiiRequestData(int type)
@@ -179,10 +180,16 @@ static void multiwiiTask(void *unused)
 
     while (1) {
         CoTickDelay(8);
-        multiwiiRequestData(type++ % 4);
-        CoTickDelay(2);
-        while (uartAvailable(multiwiiData.serial))
-            receiveMSP();
+        if ( !cliActive ) {
+        	multiwiiRequestData(type++ % 4);
+          	CoTickDelay(2);
+          	while (uartAvailable(multiwiiData.serial))
+          		receiveMSP( uartRead( multiwiiData.serial ) );
+        } else {
+          	while (uartAvailable(multiwiiData.serial)) {
+          		cliReceive( uartRead( multiwiiData.serial ) );
+          	}
+        }
     }
 }
 

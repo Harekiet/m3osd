@@ -19,6 +19,12 @@
 
 Config_t cfg;
 
+//Table of all the config entries and their limits and what not
+static const ConfigEntry_t ConfigTable[] = {
+	#include "configtable.h"
+};
+
+#define TABLE_COUNT (sizeof(ConfigTable) / sizeof(ConfigTable[0]))
 
 //Simple slow crc16 calculation without lookup table
 static uint16_t makeCRC16(const uint8_t* input, uint32_t size) {
@@ -61,7 +67,6 @@ static uint16_t configCRC16( const Config_t* input ) {
 	return makeCRC16( start, size );
 }
 
-
 //Check for a valid configuration in memory
 static uint8_t validFlash() {
     const Config_t *temp = (const Config_t *)FLASH_WRITE_ADDR;
@@ -86,15 +91,13 @@ static void readFlash() {
 }
 
 static void writeFlash() {
-    FLASH_Status status;
     uint32_t i;
-
+#if 0
+    FLASH_Status status;
     //Finish the config to be written to the flash
     cfg.version = CONFIG_VERSION;
     cfg.size = sizeof( cfg );
     cfg.crc16 = configCRC16( &cfg );
-
-#if 0
     //TODO Maybe lock coos
     // write it
     FLASH_Unlock();
@@ -116,13 +119,10 @@ static void writeFlash() {
     	LED0_TOGGLE;
     	LED1_TOGGLE;
     	//50 millisecond delay
-//    	timerDelay( 50000 );
-//		timerDelay( 50000 );
     	timerDelay( 50000 );
     }
     LED0_OFF;
     LED1_OFF;
-
 }
 
 
@@ -133,26 +133,121 @@ void configLoad() {
 	} else {
 		configReset();
 	}
+}
 
+const ConfigEntry_t* configIndex( uint32_t index ) {
+    uint32_t count = TABLE_COUNT;
+    if ( index < count ) {
+    	return ConfigTable + index;
+    } else {
+    	return 0;
+    }
+}
+
+const ConfigEntry_t* configFind( const char* match ) {
+    uint32_t count = sizeof( ConfigTable ) / sizeof( ConfigTable[0] );
+    const ConfigEntry_t* entry = ConfigTable;
+    for( ; count > 0; entry++, count-- ) {
+    	if ( !strcasecmp( match, entry->name ) )
+    		return entry;
+    }
+    return 0;
+}
+
+#define PRINTENTRY( _TYPE, _FORMAT ) \
+	case CONF_TYPE_ ## _TYPE :	\
+		formatOutput( putFunc, putData, _FORMAT, *(CONF_TYPEDEF_ ## _TYPE *)entry->data );	\
+		break;
+
+void configPrint( const ConfigEntry_t* entry, PutFunction putFunc, void* putData ) {
+	//Value to be set into the entry
+	switch( entry->type ) {
+	PRINTENTRY( U8, "%u" );
+	PRINTENTRY( U16, "%u" );
+	PRINTENTRY( U32, "%u" );
+	PRINTENTRY( S8, "%d" );
+	PRINTENTRY( S16, "%d" );
+	PRINTENTRY( S32, "%d" );
+	}
+}
+
+//Helper define to set a value and clip it against min/max values
+#define SETENTRY( _TYPE,  _ENTRY, _VALUE ) \
+	case CONF_TYPE_ ## _TYPE :	\
+	if ( _ENTRY ->min. _TYPE || _ENTRY ->max. _TYPE ) {				\
+		if ( _VALUE . _TYPE < _ENTRY ->min. _TYPE ) { *(CONF_TYPEDEF_ ## _TYPE *)_ENTRY ->data = _ENTRY ->min. _TYPE; return CONF_SET_MIN; }	\
+		if ( _VALUE . _TYPE > _ENTRY ->max. _TYPE ) { *(CONF_TYPEDEF_ ## _TYPE *)_ENTRY ->data = _ENTRY ->max. _TYPE; return CONF_SET_MAX; }	\
+	}	\
+	*(CONF_TYPEDEF_ ## _TYPE *)_ENTRY ->data = _VALUE . _TYPE;	\
+	return CONF_SET_FINE;
+
+//Returns 1 when successful
+uint8_t configSet( const ConfigEntry_t* entry, const ConfigValue_t value ) {
+	switch ( entry->type ) {
+	SETENTRY( U8, entry, value );
+	SETENTRY( U16, entry, value );
+	SETENTRY( U32, entry, value );
+	SETENTRY( S8, entry, value );
+	SETENTRY( S16, entry, value );
+	SETENTRY( S32, entry, value );
+	SETENTRY( FLT, entry, value );
+	}
+	return CONF_SET_FAIL;
+}
+
+uint8_t configSetString( const ConfigEntry_t* entry, const char* string ) {
+	//Value to be set into the entry
+	ConfigValue_t value;
+	switch( entry->type ) {
+	case CONF_TYPE_U8:
+		if ( !makeInt( string, 1, &value.U32 ) )
+			return CONF_SET_FAIL;
+		value.U8 = value.U32;
+		break;
+	case CONF_TYPE_U16:
+		if ( !makeInt( string, 1, &value.U32 ) )
+			return CONF_SET_FAIL;
+		value.U16 = value.U32;
+		break;
+	case CONF_TYPE_U32:
+		if ( !makeInt( string, 1, &value.U32 ) )
+			return CONF_SET_FAIL;
+		break;
+	case CONF_TYPE_S8:
+		if ( !makeInt( string, 0, &value.S32 ) )
+			return CONF_SET_FAIL;
+		value.S8 = value.S32;
+		break;
+	case CONF_TYPE_S16:
+		if ( !makeInt( string, 0, &value.S32 ) )
+			return CONF_SET_FAIL;
+		value.S16 = value.S32;
+		break;
+	case CONF_TYPE_S32:
+		if ( !makeInt( string, 0, &value.S32 ) )
+			return CONF_SET_FAIL;
+		break;
+	default:
+		return CONF_SET_FAIL;
+	}
+	return configSet( entry, value );
 }
 
 // Default settings
 void configReset() {
     memset(&cfg, 0, sizeof(cfg) );
 
-    cfg.version = CONFIG_VERSION;
-    cfg.width = OSD_WIDTH_MAX;
-    cfg.height = OSD_HEIGHT_MAX - 10;
-    cfg.delayX = 55;
-    cfg.delayY = 46;
-    cfg.showBorder = 0;
-    cfg.clockDivider = 9;
-    cfg.gpsBaudrate = 115200;
-
+    uint32_t count = TABLE_COUNT;
+    //Go through my entire table resettings everything
+    const ConfigEntry_t* entry = ConfigTable;
+    for( ; count > 0; entry++, count-- ) {
+    	configSet( entry, entry->reset );
+    }
     writeFlash();
 }
 
 void configSave() {
 	writeFlash();
 }
+
 

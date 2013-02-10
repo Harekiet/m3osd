@@ -3,21 +3,18 @@
 #define OSD_WIDTH_MAX   352
 #define OSD_HEIGHT_MAX 275
 
+//1 Extra byte per line which should be 0
 #define OSD_HRES (1+(OSD_WIDTH_MAX / 8))
 #define OSD_VRES OSD_HEIGHT_MAX
 
 typedef struct {
-    uint16_t currentScanLine;
-    uint16_t maxScanLine;
-//    uint16_t Height;                // depend from PAL. OSD_HEIGHT_PAL or OSD_HEIGHT_NTSC
-
+    uint8_t *ptrLine;            // current pos in OSD_RAM for DMA irq refresh
+	int16_t currentScanLine;
+    int16_t maxScanLine;
     volatile uint8_t OSD_RAM[ OSD_HRES * OSD_VRES ];
-//    volatile uint8_t OSD_LINE[OSD_HRES + 1];
     volatile uint8_t OSD_LINEBW[ OSD_HRES ];
     OS_FlagID osdUpdateFlag;
-//    OS_FlagID osdRecalcFlag;
     uint8_t PAL;                    // PAL or NTSC
-    uint8_t *ptrLine;            // current pos in OSD_RAM for DMA irq refresh
 } osdData_t;
 
 //! Bitmask for drawing circle octant 0.

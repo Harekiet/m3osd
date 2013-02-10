@@ -7,8 +7,13 @@
 #include "usb.h"
 #include "fonts.h"
 
-#define BLINK_STACK_SIZE 48
-OS_STK blinkStack[BLINK_STACK_SIZE];
+#define BLINK_STACK_SIZE 64
+#define MAIN_STACK_SIZE 512
+
+//Make sure the stacks are 8 byte aligned
+OS_STK blinkStack[BLINK_STACK_SIZE] __attribute__ ((aligned (8)));
+OS_STK mainStack[MAIN_STACK_SIZE] __attribute__ ((aligned (8)));
+
 volatile uint32_t minCycles, idleCounter, totalCycles;
 uint32_t oldIdleCounter;
 volatile float idlePercent;
@@ -28,9 +33,9 @@ void blinkTask(void *unused)
 void CoIdleTask(void *pdata)
 {
     volatile unsigned long cycles;
-    volatile unsigned int *DWT_CYCCNT = (volatile unsigned int *) 0xE0001004;
-    volatile unsigned int *DWT_CONTROL = (volatile unsigned int *) 0xE0001000;
-    volatile unsigned int *SCB_DEMCR = (volatile unsigned int *) 0xE000EDFC;
+	#define DWT_CYCCNT ((volatile unsigned int *) 0xE0001004)
+	#define DWT_CONTROL ((volatile unsigned int *) 0xE0001000)
+	#define SCB_DEMCR ((volatile unsigned int *) 0xE000EDFC)
 
     *SCB_DEMCR = *SCB_DEMCR | 0x01000000;
     *DWT_CONTROL = *DWT_CONTROL | 1;    // enable the counter
@@ -62,6 +67,8 @@ void CoIdleTask(void *pdata)
 
 void CoStkOverflowHook(OS_TID taskID)
 {
+	//Lock the scheduler so we know some task is frozen
+	CoSchedLock();
     // Process stack overflow here
     while (1);
 }
@@ -205,27 +212,43 @@ void osdHorizon(void)
     osdDrawLine(x_c2 - L2 * cosroll, y_c2 - L2 * -sinroll, x_c2 + L2 * cosroll, y_c2 + L2 * -sinroll, 1, 0);
 }
 
-#define MAIN_STACK_SIZE 512
-OS_STK mainStack[MAIN_STACK_SIZE];
+static void drawVoltages() {
+   	const int x = 20;
+	const int cellCount = sensorData.batteryData.numCells < 6 ? sensorData.batteryData.numCells : 0;
+	int y = cfg.height - 17 - cellCount * 16;
+	float total = 0;
+	//Draw the seperate cells
+	for ( int c = 0; c < cellCount; c++, y += 16 ) {
+		float v = sensorData.batteryData.voltage[c];
+		total += v;
+		osdDrawFormat( x, y, FONT_16PX_FIXED, "%d %5.2fV", c, v );
+	}
+	//Draw total
+	total += 0.23f;
+	osdDrawFormat( x, y, FONT_16PX_FIXED, "T %5.2fV", total );
+}
+
 
 void mainTask(void *unused)
 {
     int i;
     int offset, head, alt;
-    const int width = cfg.width;
-    const int halfWidth = width >> 1;
-    const int height = cfg.height;
-    const int halfHeight = height / 2;
 
     while (1) {
-        CoWaitForSingleFlag(osdData.osdUpdateFlag, 0);
+        const int width = cfg.width;
+        const int halfWidth = width >> 1;
+        const int height = cfg.height;
+        const int halfHeight = height / 2;
+
+    	CoWaitForSingleFlag(osdData.osdUpdateFlag, 0);
         CoClearFlag(osdData.osdUpdateFlag);
         LED1_TOGGLE;
         
         //Show a debug rectangle around the screen
-        if ( 1 || cfg.showBorder ) {
+        if ( cfg.showBorder ) {
         	osdDrawRectangle(0, 0, width, height, 1);
         }
+
         osdHorizon();
 
         // heading 
@@ -267,7 +290,6 @@ void mainTask(void *unused)
         osdSetCursor( halfWidth - 2 * 8, 25);
         osdDrawDecimal(FONT_16PX_FIXED, multiwiiData.heading, 3, 0, -1);
 
-
         // altitude
         osdDrawVerticalLine( width - 100 + 20 + 12, halfHeight - 140 / 2 - 3, 160, 1);
         osdSetCursor( width - 100 - 1 + 24, halfHeight - 10);
@@ -288,7 +310,6 @@ void mainTask(void *unused)
         //osdDrawDecimal(4, multiwiiData.GPS_altitude, 4, 0, 4);
         osdDrawDecimal(4, multiwiiData.altitude, 5, 0, 2);
 
-
         /*
            osdDrawCircle(50, 150, 32, 1, 0xFF);
            osdDrawFilledCircle(50, 150, 16, 1, 0xFF);
@@ -308,6 +329,9 @@ void mainTask(void *unused)
             osdDrawCharacter('C', FONT_8PX_FIXED);
         }
         osdDrawDecimal2(FONT_8PX_FIXED, osdData.maxScanLine, 3, 0, 3);
+
+        //CPU Usage
+        osdDrawFormat( width - 8 * 8 - 2, 10,  FONT_8PX_FIXED, "IDLE %.1f", idlePercent );
 
         // GPS
         osdSetCursor(3, 50);
@@ -369,52 +393,101 @@ void mainTask(void *unused)
         osdDrawCharacter('S', FONT_16PX_FIXED);
         osdDrawDecimal(FONT_16PX_FIXED, multiwiiData.GPS_distanceToHome, 5, 0, 5);    // meters?
 
-
         osdSetCursor(3, 50 + 16 * 6);
         osdDrawCharacter('H', FONT_16PX_FIXED);
         osdDrawCharacter('O', FONT_16PX_FIXED);
         osdDrawCharacter('D', FONT_16PX_FIXED);
         osdDrawDecimal(FONT_16PX_FIXED, multiwiiData.GPS_directionToHome, 5, 0, 5);   // ??
 
-       //Draw some voltages
-        {
-        	const int x = 20;
-        	const int cellCount = sensorData.batteryData.numCells < 6 ? sensorData.batteryData.numCells : 0;
-        	int y = height - 17 - cellCount * 16;
-        	float total = 0;
-        	//Draw the seperate cells
-        	for ( int c = 0; c < cellCount; c++, y += 16 ) {
-        		float v = sensorData.batteryData.voltage[c];
-        		total += v;
-        		osdDrawFormat( x, y, FONT_16PX_FIXED, "%d %5.2fV", c, v );
-        	}
-        	//Draw total
-    		osdDrawFormat( x, y, FONT_16PX_FIXED, "T %5.2fV", total );
-        }
-
-
         osdSetCursor(50, 185);
         osdDrawDecimal(FONT_8PX_PROP, multiwiiData.anglePitch, 3, 0, 1);
         osdSetCursor(80, 185);
         osdDrawDecimal(FONT_8PX_PROP, multiwiiData.angleRoll, 3, 0, 1);
 
+        drawVoltages();
+
 //        CoTickDelay(5);
+
     }
 }
 
+void NMI_Handler() {
+	while (1 ) {
+	}
+}
+
+void HardFault_Handler() {
+	while (1 ) {
+	}
+}
+
+void MemManage_Handler() {
+	while (1 ) {
+	}
+}
+
+void BusFault_Handler() {
+	while (1 ) {
+	}
+}
+
+void UsageFault_Handler() {
+	while (1 ) {
+	}
+}
+
+void SVC_Handler()  {
+	while (1 ) {
+	}
+}
+
+void DebugMon_Handler()  {
+	while (1 ) {
+	}
+}
 
 
-int main(void)
-{
-    setup();
+void WWDG_IRQHandler() {
+	while (1 ) {
+	}
+}
+
+void PVD_IRQHandler() {
+	while (1 ) {
+	}
+}
+
+void TAMPER_IRQHandler() {
+	while (1 ) {
+	}
+}
+
+void RTC_IRQHandler() {
+	while (1 ) {
+	}
+}
+
+void FLASH_IRQHandler() {
+	while (1 ) {
+	}
+}
+
+void RCC_IRQHandler() {
+	while (1 ) {
+	}
+}
+
+int main(void) {
+	setup();
     //Load the current config
     configLoad();
 
     CoInitOS();
-
+#if 0
     USB_Renumerate();
     USB_Interrupts_Config();
     USB_Init();
+#endif
 
     osdInit();
     sensorsInit();

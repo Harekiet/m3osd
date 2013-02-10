@@ -8,12 +8,13 @@
 #ifndef CLI_H_
 #define CLI_H_
 
-
-
 void cliPrint( const char* fmt, ... );
 
-void cliRunCommand( const char* cmd );
+void cliParse( char* cmd );
 
+void cliStart();
+
+void cliReceive( char c );
 
 
 #endif /* CLI_H_ */
