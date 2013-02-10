@@ -1,6 +1,7 @@
 //Make sure the buffer is always large enough
 
 #include "libformat.h"
+#include <stdint.h>
 
 #define FORMAT_FLOAT_DIGITS 7
 
@@ -102,9 +103,7 @@ static void f2a( float input, unsigned int digits, char *bf ) {
 	*bf = 0;
 }
 
-//Convert a single char to a digit
-static int a2d(char ch)
-{
+int a2d(char ch) {
     if (ch >= '0' && ch <= '9')
         return ch - '0';
     else if (ch >= 'a' && ch <= 'f')
@@ -114,6 +113,110 @@ static int a2d(char ch)
     else
         return -1;
 }
+
+
+//Try to make an integer from a string, signed or unsigned
+char makeInt( const char *p, char us, void *result ) {
+	char ch;
+	uint32_t value = 0;
+//	uint32_t max;
+	unsigned int count = 0;
+	unsigned int base;
+	uint8_t negative = 0;
+
+	// Skip leading white spaces
+    while ( (*p == ' ') || (*p == '\t') ) {
+        ++p;
+    }
+
+	//Check for a negative value
+    if ( *p == '-' ) {
+    	//Don't support negative with unsigned
+    	if ( us )
+    		return 0;
+    	negative = 1;
+    	++p;
+    }
+
+    //Check for hexadecimal input
+    if ( *p == 'x' || *p == 'X' ) {
+    	base = 16;
+    	++p;
+//		max = (( 1<< 32) - 16) / 16;
+    //Check for binary input
+	} else if ( *p == 'b' || *p == 'B' ) {
+		base = 2;
+    	++p;
+//		max = (( 1<< 32) - 2) / 2;
+	//Regular old decimal input
+    } else {
+    	base = 10;
+//		max = (( 1<< 32) - 10) / 10;
+    }
+
+	for ( ch = *p; ch; p++, ch = *p, count++ ) {
+		unsigned int add = a2d( ch );
+		//Easy check against base and -1
+		if ( add >= base ) {
+			return 0;
+		}
+		//TODO check if you'd overflow the value?
+		value = value * base + add;
+	}
+	//TODO check for additional chars?
+	if ( count == 0 )
+		return 0;
+
+	if ( us ) {
+		*(uint32_t*)result = value;
+	} else if ( negative ) {
+		//TODO check for signed limits
+		*(int32_t*)result = -(int32_t)value;
+	} else {
+		//TODO check for signed limits
+		*(int32_t*)result = (int32_t)value;
+	}
+	return 1;
+}
+
+//Extract a space separated word by modifying the original string
+const char* extractWord( char ** cmd ) {
+	char* start = *cmd;
+	char c;
+	while ( 1 ) {
+		c = *start;
+		//End of string return 0 that all is over
+		if ( !c ) {
+			*cmd = start;
+			return 0;
+		}
+		//Any non white space interrupt scanning
+		if ( c != ' ' && c != '\t' )
+			break;
+		++start;
+	}
+	//Check when the word ends
+	char* end = start;
+	while ( 1 ) {
+		c = *end;
+		//End of input
+		if ( c == 0 ) {
+			//Set the input the same
+			*cmd = end;
+			break;
+		//hitting a white space, replace it with 0
+		} else if ( c == ' ' || c == '\t' ) {
+			//Replace the white space with a line terminator
+			*end = 0;
+			//input 1 beyond this for next word
+			*cmd = end + 1;
+			break;
+		}
+		++end;
+	}
+	return start;
+}
+
 
 //Convert a string to an number
 static char a2ui(char ch, const char **src, int base, unsigned int *nump)
@@ -132,7 +235,7 @@ static char a2ui(char ch, const char **src, int base, unsigned int *nump)
     return ch;
 }
 
-void formatOutput( PutFunction putFunc, void* putData , const char *fmt, va_list va) {
+void formatOutputVA( PutFunction putFunc, void* putData, const char *fmt, va_list va) {
     //Temporary buffer for formatting numbers
 	char buf[ FLOATLENGTH ];
 	char ch;
@@ -142,6 +245,7 @@ void formatOutput( PutFunction putFunc, void* putData , const char *fmt, va_list
         	putFunc( putData, ch );
         } else {
         	const char* write;
+        	unsigned char rightJustify = 1;
         	//Leading zero enabled
             unsigned char lz = 0;
            //How many digits to show, default will depend type
@@ -149,6 +253,12 @@ void formatOutput( PutFunction putFunc, void* putData , const char *fmt, va_list
             //Minimum width
             unsigned int minWidth = 0;
             ch = *(fmt++);
+            //Check for left justify
+            if ( ch == '-' ) {
+            	ch = *(fmt++);
+            	rightJustify = 0;
+            }
+            //Check for 0 fill
             if (ch == '0') {
                 ch = *(fmt++);
                 lz = 1;
@@ -209,14 +319,29 @@ void formatOutput( PutFunction putFunc, void* putData , const char *fmt, va_list
             const char *getLen = write;
             while (*getLen++ && minWidth > 0)
                 minWidth--;
-            while (minWidth-- > 0)
-                putFunc( putData, fillChar );
+            if ( rightJustify ) {
+            	while (minWidth-- > 0)
+            		putFunc( putData, fillChar );
+            }
 
             //Copy the rest of the string
             while ( (ch = *write++) )
             	putFunc( putData, ch );
+
+            if ( !rightJustify ) {
+            	while (minWidth-- > 0)
+            		putFunc( putData, fillChar );
+            }
+
         }
     }
+}
+
+void formatOutput( PutFunction putFunc, void* putData, const char *fmt, ... ) {
+    va_list va;
+    va_start(va, fmt);
+    formatOutputVA( putFunc, putData, fmt, va );
+    va_end(va);
 }
 
 typedef struct  {
@@ -229,8 +354,8 @@ static void stringOutput( void* d, char ch ) {
 
 	if ( data->left ) {
 		*data->buffer++ = ch;
+		data->left--;
 	}
-
 }
 
 char* formatString( char* outBuf, unsigned int outSize, const char *fmt, ... ) {
@@ -241,7 +366,7 @@ char* formatString( char* outBuf, unsigned int outSize, const char *fmt, ... ) {
 
     va_list va;
     va_start(va, fmt);
-    formatOutput( stringOutput, &data, fmt, va );
+    formatOutputVA( stringOutput, &data, fmt, va );
     va_end(va);
     //Finish the string
     data.buffer[0] = 0;
