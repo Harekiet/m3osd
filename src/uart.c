@@ -197,12 +197,11 @@ static void uartStartTxDMA(serialPort_t * s)
 {
     s->txDMAChannel->CMAR = (uint32_t) & s->txBuffer[s->txBufferTail];
     if (s->txBufferHead > s->txBufferTail) {
-        s->txDMAChannel->CNDTR = s->txBufferHead - s->txBufferTail;
-        s->txBufferTail = s->txBufferHead;
+    	s->txDMACount = s->txBufferHead - s->txBufferTail;
     } else {
-        s->txDMAChannel->CNDTR = s->txBufferSize - s->txBufferTail;
-        s->txBufferTail = 0;
+    	s->txDMACount = s->txBufferSize - s->txBufferTail;
     }
+    s->txDMAChannel->CNDTR = s->txDMACount;
 
     DMA_Cmd(s->txDMAChannel, ENABLE);
 }
@@ -233,8 +232,15 @@ uint8_t uartRead(serialPort_t * s)
 
 void uartWrite(serialPort_t * s, uint8_t ch)
 {
-    s->txBuffer[s->txBufferHead] = ch;
-    s->txBufferHead = (s->txBufferHead + 1) % s->txBufferSize;
+	//check if adding this byte would overflow the buffer
+	uint32_t nextHead = (s->txBufferHead + 1) % s->txBufferSize;
+    while (nextHead == s->txBufferTail ) {
+    	//Delay while the irq/dma's do their thing
+    	CoTickDelay( 1 );
+    }
+
+	s->txBuffer[s->txBufferHead] = ch;
+    s->txBufferHead = nextHead;
 
     if (s->txDMAChannel) {
         if (!(s->txDMAChannel->CCR & 1))
@@ -243,17 +249,6 @@ void uartWrite(serialPort_t * s, uint8_t ch)
         USART_ITConfig(s->USARTx, USART_IT_TXE, ENABLE);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
 
 
 // Handlers
@@ -280,6 +275,9 @@ void DMA1_Channel7_IRQHandler(void)
     serialPort_t *s = &serialPort2;
     DMA_ClearITPendingBit(DMA1_IT_TC7);
     DMA_Cmd(s->txDMAChannel, DISABLE);
+
+    //Forward the tail now that the dma is done with it
+    s->txBufferTail = ( s->txBufferTail + s->txDMACount ) % s->txBufferSize;
 
     if (s->txBufferHead != s->txBufferTail)
         uartStartTxDMA(s);
