@@ -90,12 +90,12 @@ void osdClearScreen(void)
     rageMemset();
 }
 
-void osdDrawPixel(int x, int y, int color)
+void osdDrawPixel(uint32_t x, uint32_t y, int color)
 {
     int offset;
 
     //Clip out of range
-    if ((x >= OSD_WIDTH_MAX ) || (y >= OSD_HEIGHT_MAX) || x < 0 || y < 0)
+    if ((x >= OSD_WIDTH_MAX ) || (y >= OSD_HEIGHT_MAX) )
         return;
 
     offset = osdPixelOffset(x, y);
@@ -556,7 +556,6 @@ void osdInit(void)
     spi.SPI_Direction = SPI_Direction_1Line_Tx;
     spi.SPI_Mode = SPI_Mode_Slave;
     spi.SPI_DataSize = SPI_DataSize_8b;
-    // spi.SPI_DataSize = SPI_DataSize_16b;
     spi.SPI_CPOL = SPI_CPOL_Low;
     spi.SPI_CPHA = SPI_CPHA_1Edge;
     spi.SPI_NSS = SPI_NSS_Soft;
@@ -676,6 +675,12 @@ void osdInit(void)
     osdData.osdUpdateFlag = CoCreateFlag(0, 0);
 }
 
+void osdRestart() {
+    TIM_SetAutoreload( TIM1, 2 * cfg.clockDivider * cfg.delayX );
+    TIM_SetCompare1(TIM1, cfg.clockDivider * cfg.delayX );
+    TIM_SetAutoreload( TIM3, cfg.clockDivider );
+}
+
 // DMA_OSD (end of pixels line)
 void DMA1_Channel3_IRQHandler(void) 
 {
@@ -688,6 +693,8 @@ void DMA1_Channel3_IRQHandler(void)
         TIM_Cmd(TIM3, DISABLE);             // shut up my dear sck
         //Update the timer to reset internal counters
         TIM_GenerateEvent( TIM3, TIM_EventSource_Update );
+        //Prevent it from being triggered again
+        TIM_SelectSlaveMode( TIM3, 0 );
 
         // clear prev OSD_RAM line when that's enabled
         if ( osdData.ptrLine ) {
@@ -708,43 +715,62 @@ void TIM1_CC_IRQHandler(void) {
 
 }
 
-
 void TIM1_TRG_COM_IRQHandler(void) {
 	static int inv = 0;
 
 	if (TIM1 ->SR & TIM_SR_TIF ) {      // Triggered on start of hsync
-		//Enable tim3 already but it should wait for it's gate
 		TIM_ClearFlag(TIM1, TIM_SR_TIF );
 		//Check if we're already in vsync
-		if ( !(GPIOB->IDR & GPIO_Pin_8 ) && osdData.currentScanLine > 200) {    // wait VSYNC
-			osdData.maxScanLine = osdData.currentScanLine;
-			osdData.PAL = osdData.maxScanLine > 200 ? 1 : 0;			// recheck mode
-			//Reset for next frame
-			osdData.currentScanLine = -cfg.delayY;
+		if ( !(GPIOB->IDR & GPIO_Pin_8 ) ) {
+			//Enough lines done to restart
+			if ( osdData.currentScanLine > 0) {    // wait VSYNC
+				osdData.maxScanLine = osdData.currentScanLine;
+				osdData.PAL = osdData.maxScanLine > 200 ? 1 : 0;			// recheck mode
+				//Reset for next frame
+				osdData.currentScanLine = -cfg.delayY;
+				//Disable timer3
+//				TIM_SelectSlaveMode( TIM3, 0 );
+				//Signal the new frame to be drawn
+				CoEnterISR();
+				isr_SetFlag(osdData.osdUpdateFlag);	// redraw after even frame
+				CoExitISR();
+			}
 		} else if (GPIOA ->IDR & GPIO_Pin_8 ) {   // check HSYNC
 			osdData.currentScanLine++;
 			//Previous line enabled tim3 timer, disable it before we start dma
 			if (osdData.currentScanLine == 0) {
+				//Enable timer3 again
+//				TIM_SelectSlaveMode( TIM3, TIM_SlaveMode_Trigger );
+//				TIM_Cmd(TIM3, DISABLE);             // shut up my dear sck
+//		        TIM_GenerateEvent( TIM3, TIM_EventSource_Update );
+
+//				TIM_SetCounter( TIM3, 0 );
+				//Update the timer to reset internal counters
+
 				//Disable the timer
-				TIM3 ->CR1 &= (uint16_t) (~((uint16_t) TIM_CR1_CEN ));
+//				TIM3->CR1 &= (uint16_t) (~((uint16_t) TIM_CR1_CEN ));
 				//                TIM_Cmd(TIM3, DISABLE);             // shut up my dear sck
 				//Update the timer to reset internal counters
 				//                TIM_GenerateEvent( TIM3, TIM_EventSource_Update );
 			}
 			//Check if we're in the active video output stage yet
 			if (osdData.currentScanLine >= 0 && osdData.currentScanLine < cfg.height ) {
+				const uint16_t dmaCount = (cfg.width >> 3) + 1;
 				osdData.ptrLine = (uint8_t *) &osdData.OSD_RAM[OSD_HRES * osdData.currentScanLine ];
 
 				// SPI1 DMA out pixels
 				OSD_DMA ->CCR &= (uint16_t) (~DMA_CCR1_EN );
 				OSD_DMA ->CMAR = (uint32_t) osdData.ptrLine;
-				OSD_DMA ->CNDTR = OSD_HRES;
+				OSD_DMA ->CNDTR = dmaCount;
 				OSD_DMA ->CCR |= DMA_CCR1_EN | DMA_CCR1_TCIE;
 				// SPI2 DMA out BW
 				OSDBW_DMA ->CCR &= (uint16_t) (~DMA_CCR1_EN );
 				OSDBW_DMA ->CMAR = (uint32_t) &osdData.OSD_LINEBW;
-				OSDBW_DMA ->CNDTR = OSD_HRES;
+				OSDBW_DMA ->CNDTR = dmaCount;
 				OSDBW_DMA ->CCR |= DMA_CCR1_EN;
+
+				//Enable tim3 to be triggered
+				TIM_SelectSlaveMode( TIM3, TIM_SlaveMode_Trigger );
 			}
 			//Don't let the dma finished handler clear the line just yet
 			if (!inv) {
@@ -756,9 +782,7 @@ void TIM1_TRG_COM_IRQHandler(void) {
 				//                if (inv) {      // no need to redraw each frame
 				//osdClearScreen();
 //				if ( !inv ) isr_SetFlag(osdData.osdUpdateFlag);	// redraw after even frame
-				CoEnterISR();
-				isr_SetFlag(osdData.osdUpdateFlag);	// redraw after even frame
-				CoExitISR();
+
 				//                } else {
 				//                    isr_SetFlag(osdData.osdRecalcFlag);   // recalc after odd frame
 				//               }

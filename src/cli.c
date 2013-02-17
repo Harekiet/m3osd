@@ -7,7 +7,7 @@
 
 #include "board.h"
 #include "multiwii.h"
-#include <unwind.h>
+#include "osdcore.h"
 
 //Forwards
 static void cliHelp( char* args );
@@ -88,6 +88,7 @@ static void cliSet( char* args ) {
 				configPrint( entry, cliOutput, 0 );
 				cliPrintLine( "" );
 			}
+			osdRestart();
 			return;
 		} else {
 

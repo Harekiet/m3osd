@@ -28,14 +28,13 @@ CONF_ENTRY( S16, width, OSD_WIDTH_MAX, OSD_WIDTH_MAX /2, OSD_WIDTH_MAX )
 CONF_ENTRY( S16, height, OSD_HEIGHT_MAX, 1, OSD_HEIGHT_MAX  )
 
 //How many pixels to delay before drawing the osd
-CONF_ENTRY( U8, delayX, 55, 0, 255 )
+CONF_ENTRY( U8, delayX, 55, 1, 255 )
 //How many lines to delay before drawing the osd
-CONF_ENTRY( U8, delayY, 33, 0, 255 )
+CONF_ENTRY( U8, delayY, 25, 1, 100 )
 //Main 72mhz clock divided by this gives twice the pixelclock
 CONF_ENTRY( U8, clockDivider, 9, 2, 16 )
 //Show a debug border around the screen
 CONF_ENTRY( U8, showBorder, 0, 0, 1 )
-CONF_ENTRY( FLT, scale, 1, 0.2f, 0.3f )
 
 #undef CONF_ENTRY
 

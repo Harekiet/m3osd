@@ -44,9 +44,10 @@ typedef struct {
 
 
 void osdInit(void);
+void osdRestart();
 void osdClearScreen(void);
 void osdTestPattern(void);
-void osdDrawPixel(int x, int y, int color);
+void osdDrawPixel(uint32_t x, uint32_t y, int color);
 void osdDrawLine(int x1, int y1, int x2, int y2, int color, int type);
 void osdDrawHorizontalLine(int x, int y, int length, int color);
 void osdDrawVerticalLine(int x, int y, int height, int color);

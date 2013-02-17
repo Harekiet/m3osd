@@ -483,11 +483,9 @@ int main(void) {
     configLoad();
 
     CoInitOS();
-#if 0
     USB_Renumerate();
     USB_Interrupts_Config();
     USB_Init();
-#endif
 
     osdInit();
     sensorsInit();
