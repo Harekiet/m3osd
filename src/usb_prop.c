@@ -7,12 +7,37 @@
 
 uint8_t Request = 0;
 
-LINE_CODING linecoding = {
-    115200,                     /* baud rate */
-    0x00,                       /* stop bits-1 */
-    0x00,                       /* parity - none */
-    0x08                        /* no. of bits 8 */
+typedef uint32_t UNLONG;
+typedef uint16_t WORD;
+typedef uint8_t UCHAR;
+
+typedef struct {
+	UCHAR deviceFlags0;		// FTxxxx device type to be programmed
+	UCHAR deviceFlags1;
+	// Device descriptor options
+	UCHAR VendorIdLo;				// 0x0403
+	UCHAR VendorIdHi;
+	UCHAR ProductIdLo;				// 0x6001
+	UCHAR ProductIdHi;				// 0x6001
+	UCHAR ReleaseLo;				// 0x200
+	UCHAR ReleaseHi;				// 0x200
+	UCHAR ConfigDescriptor;			// 0x80
+	UCHAR MaxPower;					// 0x10
+	WORD Zero;
+} EepRom_t;
+
+static const EepRom_t eepRom = {
+		.VendorIdHi = 0x04,
+		.VendorIdLo = 0x03,
+		.ProductIdHi = 0x60,
+		.ProductIdLo = 0x01,
+		.ReleaseHi = 0x2,
+		.ConfigDescriptor = 0x80,
+		.MaxPower = 0x10,
 };
+
+//Address of currently read eeprom
+static uint8_t eepromAddr;
 
 DEVICE Device_Table = {
     EP_NUM,
@@ -123,24 +148,17 @@ void Virtual_Com_Port_Reset(void)
     SetEPRxCount(ENDP0, Device_Property.MaxPacketSize);
     SetEPRxValid(ENDP0);
 
-    /* Initialize Endpoint 1 */
+    /* Initialize Endpoint 1 TX/RX Enabled */
     SetEPType(ENDP1, EP_BULK);
+
+    SetEPRxAddr(ENDP1, ENDP1_RXADDR);
     SetEPTxAddr(ENDP1, ENDP1_TXADDR);
-    SetEPTxStatus(ENDP1, EP_TX_NAK);
-    SetEPRxStatus(ENDP1, EP_RX_DIS);
 
-    /* Initialize Endpoint 2 */
-    SetEPType(ENDP2, EP_INTERRUPT);
-    SetEPTxAddr(ENDP2, ENDP2_TXADDR);
-    SetEPRxStatus(ENDP2, EP_RX_DIS);
-    SetEPTxStatus(ENDP2, EP_TX_NAK);
+    SetEPRxCount(ENDP1, VIRTUAL_COM_PORT_DATA_SIZE );
 
-    /* Initialize Endpoint 3 */
-    SetEPType(ENDP3, EP_BULK);
-    SetEPRxAddr(ENDP3, ENDP3_RXADDR);
-    SetEPRxCount(ENDP3, VIRTUAL_COM_PORT_DATA_SIZE);
-    SetEPRxStatus(ENDP3, EP_RX_VALID);
-    SetEPTxStatus(ENDP3, EP_TX_DIS);
+    Clear_Status_Out(ENDP1);
+    SetEPRxValid(ENDP1);
+    SetEPTxStatus(ENDP1, EP_TX_NAK );
 
     /* Set this device to response on default address */
     SetDeviceAddress(0);
@@ -186,9 +204,11 @@ void Virtual_Com_Port_SetDeviceAddress(void)
 *******************************************************************************/
 void Virtual_Com_Port_Status_In(void)
 {
-    if (Request == SET_LINE_CODING) {
+#if 0
+	if (Request == SET_LINE_CODING) {
         Request = 0;
     }
+#endif
 }
 
 /*******************************************************************************
@@ -202,6 +222,30 @@ void Virtual_Com_Port_Status_Out(void)
 {
 }
 
+static uint8_t *Virtual_Com_Port_ReadEeprom(uint16_t Length)
+{
+    if (Length == 0) {
+        pInformation->Ctrl_Info.Usb_wLength = 2;
+        return NULL;
+    }
+//    static const uint16_t fakeRom = ~0;
+//    return (uint8_t *) &fakeRom;
+
+    return( (uint8_t *) &eepRom ) + eepromAddr;
+}
+
+
+static uint8_t *Virtual_Com_Port_ReadModemStatus(uint16_t Length)
+{
+	if (Length == 0) {
+        pInformation->Ctrl_Info.Usb_wLength = 2;
+        return NULL;
+    }
+	static const uint8_t fakeStatus[2] = {0, 0 };
+    return (uint8_t*)&fakeStatus;
+}
+
+
 /*******************************************************************************
 * Function Name  : Virtual_Com_Port_Data_Setup
 * Description    : handle the data class specific requests
@@ -211,19 +255,21 @@ void Virtual_Com_Port_Status_Out(void)
 *******************************************************************************/
 RESULT Virtual_Com_Port_Data_Setup(uint8_t RequestNo)
 {
-    uint8_t *(*CopyRoutine) (uint16_t);
-
+	uint8_t *(*CopyRoutine) (uint16_t);
+	uint8_t requestType = pInformation->USBbmRequestType;
     CopyRoutine = NULL;
 
-    if (RequestNo == GET_LINE_CODING) {
-        if (Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT)) {
-            CopyRoutine = Virtual_Com_Port_GetLineCoding;
-        }
-    } else if (RequestNo == SET_LINE_CODING) {
-        if (Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT)) {
-            CopyRoutine = Virtual_Com_Port_SetLineCoding;
-        }
-        Request = SET_LINE_CODING;
+    //Vendor request device to host
+    if ( requestType == 0xc0 ) {
+		if ( RequestNo == SIO_READ_EEPROM_REQUEST ) {
+			eepromAddr = pInformation->USBwIndexs.bw.bb0 * 2;
+			if ( eepromAddr >= (sizeof( eepRom ) - 2 ) ) {
+				eepromAddr = sizeof( eepRom ) - 2;
+			}
+			CopyRoutine = Virtual_Com_Port_ReadEeprom;
+		} else if ( RequestNo == SIO_POLL_MODEM_STATUS_REQUEST ) {
+			CopyRoutine = Virtual_Com_Port_ReadModemStatus;
+		}
     }
 
     if (CopyRoutine == NULL) {
@@ -232,6 +278,7 @@ RESULT Virtual_Com_Port_Data_Setup(uint8_t RequestNo)
 
     pInformation->Ctrl_Info.CopyData = CopyRoutine;
     pInformation->Ctrl_Info.Usb_wOffset = 0;
+    //Init to set the length
     (*CopyRoutine) (0);
     return USB_SUCCESS;
 }
@@ -245,14 +292,28 @@ RESULT Virtual_Com_Port_Data_Setup(uint8_t RequestNo)
 *******************************************************************************/
 RESULT Virtual_Com_Port_NoData_Setup(uint8_t RequestNo)
 {
-
-    if (Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT)) {
-        if (RequestNo == SET_COMM_FEATURE) {
-            return USB_SUCCESS;
-        } else if (RequestNo == SET_CONTROL_LINE_STATE) {
-            return USB_SUCCESS;
-        }
-    }
+	uint8_t requestType = pInformation->USBbmRequestType;
+	//Vendor request host to device
+	if ( requestType == 0x40 ) {
+		if ( RequestNo == SIO_RESET_REQUEST ) {
+			return USB_SUCCESS;
+		}
+		if ( RequestNo == SIO_SET_MODEM_CTRL_REQUEST ) {
+			return USB_SUCCESS;
+		}
+		if ( RequestNo == SIO_SET_BAUDRATE_REQUEST ) {
+			return USB_SUCCESS;
+		}
+		if ( RequestNo == SIO_SET_FLOW_CTRL_REQUEST ) {
+			return USB_SUCCESS;
+		}
+		if ( RequestNo == SIO_SET_DATA_REQUEST ) {
+			return USB_SUCCESS;
+		}
+		if ( RequestNo == SIO_SET_LATENCY_TIMER_REQUEST ) {
+			return USB_SUCCESS;
+		}
+	}
 
     return USB_UNSUPPORT;
 }
@@ -317,6 +378,7 @@ RESULT Virtual_Com_Port_Get_Interface_Setting(uint8_t Interface, uint8_t Alterna
     return USB_SUCCESS;
 }
 
+#if 0
 /*******************************************************************************
 * Function Name  : Virtual_Com_Port_GetLineCoding.
 * Description    : send the linecoding structure to the PC host.
@@ -348,5 +410,6 @@ uint8_t *Virtual_Com_Port_SetLineCoding(uint16_t Length)
     }
     return (uint8_t *) & linecoding;
 }
+#endif
 
 /******************* (C) COPYRIGHT 2011 STMicroelectronics *****END OF FILE****/

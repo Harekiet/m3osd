@@ -29,7 +29,7 @@
 /* defines how many endpoints are used by the device */
 /*-------------------------------------------------------------*/
 
-#define EP_NUM                          (4)
+#define EP_NUM                          (2)
 
 
 #ifndef STM32F10X_CL
@@ -46,10 +46,9 @@
 #define ENDP0_TXADDR        (0x80)
 
 /* EP1  */
-/* tx buffer base address */
-#define ENDP1_TXADDR        (0xC0)
-#define ENDP2_TXADDR        (0x100)
-#define ENDP3_RXADDR        (0x110)
+/* rx/tx buffer base address */
+#define ENDP1_RXADDR        (0xC0)
+#define ENDP1_TXADDR        (0x100)
 
 
 /*-------------------------------------------------------------*/
@@ -66,7 +65,7 @@
 /*#define WKUP_CALLBACK*/
 /*#define SUSP_CALLBACK*/
 /*#define RESET_CALLBACK*/
-#define SOF_CALLBACK
+/*#define SOF_CALLBACK*/
 /*#define ESOF_CALLBACK*/
 #endif                          /* STM32F10X_CL */
 
@@ -184,9 +183,9 @@
 #define  EP6_IN_Callback   NOP_Process
 #define  EP7_IN_Callback   NOP_Process
 
-#define  EP1_OUT_Callback   NOP_Process
+//#define  EP1_OUT_Callback   NOP_Process
 #define  EP2_OUT_Callback   NOP_Process
-/*#define  EP3_OUT_Callback   NOP_Process*/
+#define  EP3_OUT_Callback   NOP_Process
 #define  EP4_OUT_Callback   NOP_Process
 #define  EP5_OUT_Callback   NOP_Process
 #define  EP6_OUT_Callback   NOP_Process

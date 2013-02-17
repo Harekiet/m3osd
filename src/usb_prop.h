@@ -17,15 +17,6 @@
 #ifndef __usb_prop_H
 #define __usb_prop_H
 
-/* Includes ------------------------------------------------------------------*/
-/* Exported types ------------------------------------------------------------*/
-typedef struct {
-    uint32_t bitrate;
-    uint8_t format;
-    uint8_t paritytype;
-    uint8_t datatype;
-} LINE_CODING;
-
 /* Exported constants --------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
 /* Exported define -----------------------------------------------------------*/
@@ -40,15 +31,38 @@ typedef struct {
 #define Virtual_Com_Port_SetDeviceFeature          NOP_Process
 //#define Virtual_Com_Port_SetDeviceAddress          NOP_Process
 
-#define SEND_ENCAPSULATED_COMMAND   0x00
-#define GET_ENCAPSULATED_RESPONSE   0x01
-#define SET_COMM_FEATURE            0x02
-#define GET_COMM_FEATURE            0x03
-#define CLEAR_COMM_FEATURE          0x04
-#define SET_LINE_CODING             0x20
-#define GET_LINE_CODING             0x21
-#define SET_CONTROL_LINE_STATE      0x22
-#define SEND_BREAK                  0x23
+#define FTDI_SIO_RESET 		0 /* Reset the port */
+#define FTDI_SIO_MODEM_CTRL 	1 /* Set the modem control register */
+#define FTDI_SIO_SET_FLOW_CTRL	2 /* Set flow control register */
+#define FTDI_SIO_SET_BAUD_RATE	3 /* Set baud rate */
+#define FTDI_SIO_SET_DATA	4 /* Set the data characteristics of the port */
+#define FTDI_SIO_GET_MODEM_STATUS	5 /* Retrieve current value of modern status register */
+#define FTDI_SIO_SET_EVENT_CHAR	6 /* Set the event character */
+#define FTDI_SIO_SET_ERROR_CHAR	7 /* Set the error character */
+#define FTDI_SIO_SET_LATENCY_TIMER	9 /* Set the latency timer */
+#define FTDI_SIO_GET_LATENCY_TIMER	10 /* Get the latency timer */
+
+#define SIO_RESET          0 /* Reset the port */
+#define SIO_MODEM_CTRL     1 /* Set the modem control register */
+#define SIO_SET_FLOW_CTRL  2 /* Set flow control register */
+#define SIO_SET_BAUD_RATE  3 /* Set baud rate */
+#define SIO_SET_DATA       4 /* Set the data characteristics of the port */
+
+#define SIO_RESET_REQUEST             SIO_RESET
+#define SIO_SET_BAUDRATE_REQUEST      SIO_SET_BAUD_RATE
+#define SIO_SET_DATA_REQUEST          SIO_SET_DATA
+#define SIO_SET_FLOW_CTRL_REQUEST     SIO_SET_FLOW_CTRL
+#define SIO_SET_MODEM_CTRL_REQUEST    SIO_MODEM_CTRL
+#define SIO_POLL_MODEM_STATUS_REQUEST 0x05
+#define SIO_SET_EVENT_CHAR_REQUEST    0x06
+#define SIO_SET_ERROR_CHAR_REQUEST    0x07
+#define SIO_SET_LATENCY_TIMER_REQUEST 0x09
+#define SIO_GET_LATENCY_TIMER_REQUEST 0x0A
+#define SIO_SET_BITMODE_REQUEST       0x0B
+#define SIO_READ_PINS_REQUEST         0x0C
+#define SIO_READ_EEPROM_REQUEST       0x90
+#define SIO_WRITE_EEPROM_REQUEST      0x91
+#define SIO_ERASE_EEPROM_REQUEST      0x92
 
 /* Exported functions ------------------------------------------------------- */
 void Virtual_Com_Port_init(void);
@@ -64,8 +78,6 @@ uint8_t *Virtual_Com_Port_GetDeviceDescriptor(uint16_t);
 uint8_t *Virtual_Com_Port_GetConfigDescriptor(uint16_t);
 uint8_t *Virtual_Com_Port_GetStringDescriptor(uint16_t);
 
-uint8_t *Virtual_Com_Port_GetLineCoding(uint16_t Length);
-uint8_t *Virtual_Com_Port_SetLineCoding(uint16_t Length);
 
 #endif                          /* __usb_prop_H */
 

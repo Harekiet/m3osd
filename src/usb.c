@@ -8,11 +8,6 @@
 #include "usb.h"
 #include "gps.h"
 
-uint8_t USART_Rx_Buffer[USART_RX_DATA_SIZE];
-uint32_t USART_Rx_ptr_in;
-uint32_t USART_Rx_ptr_out;
-uint32_t USART_Rx_length = 0;
-
 void OnUsbDataRx(uint8_t * dataIn, uint8_t length)
 {
     int i;
