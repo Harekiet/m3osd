@@ -34,8 +34,8 @@ const uint8_t Virtual_Com_Port_ConfigDescriptor[ VIRTUAL_COM_PORT_SIZ_CONFIG_DES
     0x01,                       /* bNumInterfaces: 1 interface */
     0x01,                       /* bConfigurationValue: Configuration value */
     0x00,                       /* iConfiguration: Index of string descriptor describing the configuration */
-    0xC0,                       /* bmAttributes: self powered */
-    0x32,                       /* MaxPower 0 mA */
+    0x80,                       /* bmAttributes: bus powered and no remote wakeup support */
+    0x2d,                       /* MaxPower some mA */
     /*Data class interface descriptor */
     0x09,                       /* bLength: Endpoint Descriptor size */
     USB_INTERFACE_DESCRIPTOR_TYPE,      /* bDescriptorType: */
@@ -43,23 +43,23 @@ const uint8_t Virtual_Com_Port_ConfigDescriptor[ VIRTUAL_COM_PORT_SIZ_CONFIG_DES
     0x00,                       /* bAlternateSetting: Alternate setting */
     0x02,                       /* bNumEndpoints: Two endpoints used */
     0xff,                       /* bInterfaceClass: 0xff */
-    0x00,                       /* bInterfaceSubClass: */
-    0x00,                       /* bInterfaceProtocol: */
-    0x00,                       /* iInterface: */
-    /* Endpoint 0x81 Descriptor */
+    0xff,                       /* bInterfaceSubClass: 0xff */
+    0xff,                       /* bInterfaceProtocol: 0xff */
+    0x00,                       /* iInterface: Index of interface string description */
+    /* 1st endpoint descriptor */
     /* UART->HOST */
     0x07,                       /* bLength: Endpoint Descriptor size */
     USB_ENDPOINT_DESCRIPTOR_TYPE,       /* bDescriptorType: Endpoint */
-    0x81,                       /* bEndpointAddress: (IN1) */
+    EP1_IN,                      /* bEndpointAddress: (IN1) */
     0x02,                       /* bmAttributes: Bulk */
     VIRTUAL_COM_PORT_DATA_SIZE, /* wMaxPacketSize: */
     0x00,
     0x00,                        /* bInterval */
-    /* Endpoint 0x1 Descriptor */
+    /* 2nd endpoint Descriptor */
     /* HOST->UART */
     0x07,                       /* bLength: Endpoint Descriptor size */
     USB_ENDPOINT_DESCRIPTOR_TYPE,       /* bDescriptorType: Endpoint */
-    0x01,                       /* bEndpointAddress: (OUT1) */
+    EP2_OUT,                       /* bEndpointAddress: (OUT2) */
     0x02,                       /* bmAttributes: Bulk */
     VIRTUAL_COM_PORT_DATA_SIZE, /* wMaxPacketSize: */
     0x00,

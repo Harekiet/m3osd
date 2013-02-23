@@ -33,7 +33,7 @@
 * Output         : None.
 * Return         : None	.
 *******************************************************************************/
-void UserToPMABufferCopy(uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wNBytes)
+void UserToPMABufferCopy(uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wOffset,  uint16_t wNBytes)
 {
   uint32_t n = (wNBytes + 1) >> 1;   /* n = (wNBytes + 1) / 2 */
   uint32_t i, temp1, temp2;
@@ -58,17 +58,26 @@ void UserToPMABufferCopy(uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wNByt
 * Output         : None.
 * Return         : None.
 *******************************************************************************/
-void PMAToUserBufferCopy(uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wNBytes)
+void PMAToUserBufferCopy(uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wOffset, uint16_t wNBytes)
 {
-  uint32_t n = (wNBytes + 1) >> 1;/* /2*/
-  uint32_t i;
-  uint32_t *pdwVal;
-  pdwVal = (uint32_t *)(wPMABufAddr * 2 + PMAAddr);
-  for (i = n; i != 0; i--)
-  {
-    *(uint16_t*)pbUsrBuf++ = *pdwVal++;
-    pbUsrBuf++;
-  }
+	//Skip 0 counts
+	if ( !wNBytes )
+		return;
+	uint32_t *pdwVal = (uint32_t *)(wPMABufAddr + (wOffset & ~0x1 ) ) * 2 + PMAAddr);
+	//First handle an unaligned read
+	if ( wOffset & 1 ) {
+		pbUsrBuf++ = (*pdwVal++) >> 8;
+		wNBytes--;
+	}
+	//Handle aligned any aligned bytes
+	for ( ; wNBytes > 1; wNBytes -= 2 ) {
+		*(uint16_t*)pbUsrBuf++ = *pdwVal++;
+		pbUsrBuf++;
+	}
+	//Last byte, read 32 bits and write the low 8 bits as the last result
+	if ( wNBytes ) {
+		*pbUsrBuf = *pdwVal;
+	}
 }
 
 #endif /* STM32F10X_CL */

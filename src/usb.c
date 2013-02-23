@@ -6,36 +6,7 @@
 #include "usb_lib.h"
 #include "usb_istr.h"
 #include "usb.h"
-#include "gps.h"
 
-void OnUsbDataRx(uint8_t * dataIn, uint8_t length)
-{
-    int i;
-
-    if (gpsData.mode == MODE_PASSTHROUGH) {
-        LED1_ON;
-        for (i = 0; i < length; i++)
-            uartWrite(gpsData.serial, dataIn[i]);
-        LED1_OFF;
-    }
-}
-
-volatile int usb_len = 0;
-
-void OnUsbDataTx(uint8_t * dataOut, uint8_t * length)
-{
-    int i = 0;
-
-    if (gpsData.mode == MODE_PASSTHROUGH) {
-        while (uartAvailable(gpsData.serial)) {
-            LED1_ON;
-            dataOut[i++] = uartRead(gpsData.serial);
-        }
-        *length = i;
-        usb_len = i;
-        LED1_OFF;
-    }
-}
 
 void USB_Renumerate(void)
 {
@@ -70,8 +41,6 @@ void USB_Renumerate(void)
     /* Enable USB clock */
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USB, ENABLE);
 }
-
-
 
 void USB_Interrupts_Config(void)
 {

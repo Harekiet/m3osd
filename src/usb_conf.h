@@ -29,7 +29,7 @@
 /* defines how many endpoints are used by the device */
 /*-------------------------------------------------------------*/
 
-#define EP_NUM                          (2)
+#define EP_NUM                          (3)
 
 
 #ifndef STM32F10X_CL
@@ -45,11 +45,10 @@
 #define ENDP0_RXADDR        (0x40)
 #define ENDP0_TXADDR        (0x80)
 
-/* EP1  */
+/* EP2  */
 /* rx/tx buffer base address */
-#define ENDP1_RXADDR        (0xC0)
-#define ENDP1_TXADDR        (0x100)
-
+#define ENDP1_TXADDR        (0xC0)
+#define ENDP2_RXADDR        (0x100)
 
 /*-------------------------------------------------------------*/
 /* -------------------   ISTR events  -------------------------*/
@@ -57,7 +56,9 @@
 /* IMR_MSK */
 /* mask defining which events has to be handled */
 /* by the device application software */
-#define IMR_MSK (CNTR_CTRM  | CNTR_SOFM  | CNTR_RESETM )
+//#define IMR_MSK (CNTR_CTRM  | CNTR_SOFM  | CNTR_RESETM )
+
+#define IMR_MSK (CNTR_CTRM | CNTR_RESETM | CNTR_SOFM )
 
 /*#define CTR_CALLBACK*/
 /*#define DOVR_CALLBACK*/
@@ -65,7 +66,8 @@
 /*#define WKUP_CALLBACK*/
 /*#define SUSP_CALLBACK*/
 /*#define RESET_CALLBACK*/
-/*#define SOF_CALLBACK*/
+#define SOF_CALLBACK
+
 /*#define ESOF_CALLBACK*/
 #endif                          /* STM32F10X_CL */
 
@@ -175,7 +177,7 @@
 
 /* CTR service routines */
 /* associated to defined endpoints */
-/*#define  EP1_IN_Callback   NOP_Process*/
+//#define  EP1_IN_Callback   NOP_Process
 #define  EP2_IN_Callback   NOP_Process
 #define  EP3_IN_Callback   NOP_Process
 #define  EP4_IN_Callback   NOP_Process
@@ -183,8 +185,8 @@
 #define  EP6_IN_Callback   NOP_Process
 #define  EP7_IN_Callback   NOP_Process
 
-//#define  EP1_OUT_Callback   NOP_Process
-#define  EP2_OUT_Callback   NOP_Process
+#define  EP1_OUT_Callback   NOP_Process
+//#define  EP2_OUT_Callback   NOP_Process
 #define  EP3_OUT_Callback   NOP_Process
 #define  EP4_OUT_Callback   NOP_Process
 #define  EP5_OUT_Callback   NOP_Process

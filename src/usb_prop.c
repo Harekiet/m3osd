@@ -12,7 +12,7 @@ typedef uint16_t WORD;
 typedef uint8_t UCHAR;
 
 typedef struct {
-	UCHAR deviceFlags0;		// FTxxxx device type to be programmed
+	UCHAR deviceFlags0;
 	UCHAR deviceFlags1;
 	// Device descriptor options
 	UCHAR VendorIdLo;				// 0x0403
@@ -21,8 +21,8 @@ typedef struct {
 	UCHAR ProductIdHi;				// 0x6001
 	UCHAR ReleaseLo;				// 0x200
 	UCHAR ReleaseHi;				// 0x200
-	UCHAR ConfigDescriptor;			// 0x80
-	UCHAR MaxPower;					// 0x10
+	UCHAR ConfigDescriptor;			// 0x80 bus powered and no remote power on
+	UCHAR MaxPower;					// 0x2d
 	WORD Zero;
 } EepRom_t;
 
@@ -33,11 +33,12 @@ static const EepRom_t eepRom = {
 		.ProductIdLo = 0x01,
 		.ReleaseHi = 0x2,
 		.ConfigDescriptor = 0x80,
-		.MaxPower = 0x10,
+		.MaxPower = 0x2d,
 };
 
 //Address of currently read eeprom
 static uint8_t eepromAddr;
+static uint8_t latencyTimer;
 
 DEVICE Device_Table = {
     EP_NUM,
@@ -148,17 +149,19 @@ void Virtual_Com_Port_Reset(void)
     SetEPRxCount(ENDP0, Device_Property.MaxPacketSize);
     SetEPRxValid(ENDP0);
 
-    /* Initialize Endpoint 1 TX/RX Enabled */
+    /* Initialize Endpoint 1  */
     SetEPType(ENDP1, EP_BULK);
-
-    SetEPRxAddr(ENDP1, ENDP1_RXADDR);
     SetEPTxAddr(ENDP1, ENDP1_TXADDR);
-
-    SetEPRxCount(ENDP1, VIRTUAL_COM_PORT_DATA_SIZE );
-
-    Clear_Status_Out(ENDP1);
-    SetEPRxValid(ENDP1);
     SetEPTxStatus(ENDP1, EP_TX_NAK );
+    SetEPRxStatus(ENDP1, EP_RX_DIS );
+
+    /* Initialize Endpoint 2  */
+    SetEPType(ENDP2, EP_BULK);
+    SetEPRxAddr(ENDP2, ENDP2_RXADDR);
+    SetEPRxCount(ENDP2, VIRTUAL_COM_PORT_DATA_SIZE);
+    SetEPTxStatus(ENDP2, EP_TX_DIS );
+    SetEPRxStatus(ENDP2, EP_RX_VALID );
+
 
     /* Set this device to response on default address */
     SetDeviceAddress(0);
@@ -245,6 +248,16 @@ static uint8_t *Virtual_Com_Port_ReadModemStatus(uint16_t Length)
     return (uint8_t*)&fakeStatus;
 }
 
+static uint8_t *Virtual_Com_Port_ReadLatencyTimer(uint16_t Length)
+{
+	if (Length == 0) {
+        pInformation->Ctrl_Info.Usb_wLength = 1;
+        return NULL;
+    }
+    return (uint8_t*)&latencyTimer;
+}
+
+
 
 /*******************************************************************************
 * Function Name  : Virtual_Com_Port_Data_Setup
@@ -269,6 +282,8 @@ RESULT Virtual_Com_Port_Data_Setup(uint8_t RequestNo)
 			CopyRoutine = Virtual_Com_Port_ReadEeprom;
 		} else if ( RequestNo == SIO_POLL_MODEM_STATUS_REQUEST ) {
 			CopyRoutine = Virtual_Com_Port_ReadModemStatus;
+		} else if ( RequestNo == SIO_GET_LATENCY_TIMER_REQUEST ) {
+			CopyRoutine = Virtual_Com_Port_ReadLatencyTimer;
 		}
     }
 
@@ -311,6 +326,9 @@ RESULT Virtual_Com_Port_NoData_Setup(uint8_t RequestNo)
 			return USB_SUCCESS;
 		}
 		if ( RequestNo == SIO_SET_LATENCY_TIMER_REQUEST ) {
+			return USB_SUCCESS;
+		}
+		if ( RequestNo == SIO_SET_EVENT_CHAR_REQUEST ) {
 			return USB_SUCCESS;
 		}
 	}

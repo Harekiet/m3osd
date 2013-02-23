@@ -2,6 +2,7 @@
 #include "uart.h"
 #include "multiwii.h"
 #include "cli.h"
+#include "usb.h"
 
 #define MULTIWII_STACK_SIZE 128
 OS_STK multiwiiStack[MULTIWII_STACK_SIZE] __attribute__ ((aligned (8)));
@@ -118,8 +119,8 @@ static void receiveMSP( uint8_t c) {
 		if ( c == '$' ) {
 			c_state = HEADER_START;
 		} else if ( c == '#' ) {
-			cliStart();
-			cliActive = 1;
+//			cliStart();
+//			cliActive = 1;
 		}
 	} else if (c_state == HEADER_START) {
 		c_state = (c == 'M') ? HEADER_M : IDLE;
@@ -180,6 +181,11 @@ static void multiwiiTask(void *unused)
 
     while (1) {
         CoTickDelay(8);
+        while( USB_RXAvailable() ) {
+        	uint8_t c = USB_RXRead();
+        	USB_TXWrite( c );
+        }
+
         if ( !cliActive ) {
         	multiwiiRequestData(type++ % 4);
           	CoTickDelay(2);
