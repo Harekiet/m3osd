@@ -233,7 +233,7 @@ uint8_t uartRead(serialPort_t * s)
 void uartWrite(serialPort_t * s, uint8_t ch)
 {
 	//check if adding this byte would overflow the buffer
-	uint32_t nextHead = (s->txBufferHead + 1) % s->txBufferSize;
+	uint16_t nextHead = (s->txBufferHead + 1) % s->txBufferSize;
     while (nextHead == s->txBufferTail ) {
     	//Delay while the irq/dma's do their thing
     	CoTickDelay( 1 );
@@ -279,6 +279,7 @@ void DMA1_Channel7_IRQHandler(void)
     //Forward the tail now that the dma is done with it
     s->txBufferTail = ( s->txBufferTail + s->txDMACount ) % s->txBufferSize;
 
+    //More left in the buffer, restart
     if (s->txBufferHead != s->txBufferTail)
         uartStartTxDMA(s);
 }

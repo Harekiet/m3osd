@@ -461,7 +461,7 @@ void DataStageOut(void)
   #ifdef STM32F10X_CL  
     PCD_EP_Read(ENDP0, Buffer, Length); 
   #else  
-    PMAToUserBufferCopy(Buffer, GetEPRxAddr(ENDP0), Length);
+    PMAToUserBufferCopy(Buffer, GetEPRxAddr(ENDP0), 0, Length);
   #endif  /* STM32F10X_CL */
   }
 
@@ -545,7 +545,7 @@ void DataStageIn(void)
 #ifdef STM32F10X_CL
   PCD_EP_Write (ENDP0, DataBuffer, Length);
 #else   
-  UserToPMABufferCopy(DataBuffer, GetEPTxAddr(ENDP0), Length);
+  UserToPMABufferCopy(DataBuffer, GetEPTxAddr(ENDP0), 0, Length);
 #endif /* STM32F10X_CL */ 
 
   SetEPTxCount(ENDP0, Length);

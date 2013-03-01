@@ -6,8 +6,12 @@
  */
 
 #include "board.h"
-#include "multiwii.h"
 #include "osdcore.h"
+#include "usb.h"
+
+//Buffer holding current input line
+static char bufferData[ 64 ];
+static uint8_t bufferIndex;
 
 //Forwards
 static void cliHelp( char* args );
@@ -26,7 +30,7 @@ static void cliReset(bool toBootloader)
 }
 
 static void cliOutput( void* data, char c ) {
-	uartWrite(multiwiiData.serial, c );
+	USB_TXWrite( c );
 }
 
 static void cliPrint( const char* fmt, ... ) {
@@ -41,8 +45,8 @@ static void cliPrintLine( const char* fmt, ... ) {
     va_start(va, fmt);
     formatOutputVA( cliOutput, 0, fmt, va );
     va_end(va);
-    uartWrite(multiwiiData.serial, '\r' );
-    uartWrite(multiwiiData.serial, '\n' );
+    USB_TXWrite( '\r' );
+    USB_TXWrite( '\n' );
 }
 
 //Show the default prompt
@@ -57,7 +61,6 @@ static void cliClear() {
 }
 
 void cliStart() {
-	multiwiiData.rxIndex = 0;
 	cliClear();
 }
 
@@ -188,30 +191,31 @@ void cliReceive( char c ) {
 	case 10:
 	case 13:
 		//Terminate string and have it parsed
-		if ( multiwiiData.rxIndex ) {
-			multiwiiData.buffer[multiwiiData.rxIndex++] = 0;
+		if ( bufferIndex ) {
+			bufferData[ bufferIndex++ ] = 0;
 			cliPrintLine( "" );
-			cliParse( (char*)multiwiiData.buffer );
-			multiwiiData.rxIndex = 0;
+			cliParse( bufferData );
+			//Reset buffer
+			bufferIndex = 0;
 			cliPrompt();
 		}
 		break;
 	case 127:	//backspace
         // backspace
-        if (multiwiiData.rxIndex) {
-        	multiwiiData.rxIndex--;
+        if (bufferIndex) {
+        	bufferIndex--;
 
             cliPrint("\010 \010");
         }
         break;
 	case 32:
 		//Ignore spaces if the line is empty
-		if ( !multiwiiData.rxIndex )
+		if ( !bufferIndex )
 			break;
 	default:
 		//Only add ascii chars when there's enough room in the buffer
-		if ( c >= 32 && c <= 127 && multiwiiData.rxIndex < sizeof( multiwiiData.buffer) - 1 ) {
-			multiwiiData.buffer[multiwiiData.rxIndex++] = c;
+		if ( c >= 32 && c <= 127 && bufferIndex < sizeof( bufferData) - 1 ) {
+			bufferData[bufferIndex++] = c;
 			cliOutput( 0, c );
 		}
 		break;

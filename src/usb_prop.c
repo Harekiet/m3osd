@@ -5,8 +5,6 @@
 #include "usb_pwr.h"
 #include "usb.h"
 
-uint8_t Request = 0;
-
 typedef uint32_t UNLONG;
 typedef uint16_t WORD;
 typedef uint8_t UCHAR;
@@ -162,10 +160,10 @@ void Virtual_Com_Port_Reset(void)
     SetEPTxStatus(ENDP2, EP_TX_DIS );
     SetEPRxStatus(ENDP2, EP_RX_VALID );
 
-
     /* Set this device to response on default address */
     SetDeviceAddress(0);
 
+    USB_Reset();
     bDeviceState = ATTACHED;
 }
 
@@ -183,6 +181,9 @@ void Virtual_Com_Port_SetConfiguration(void)
     if (pInfo->Current_Configuration != 0) {
         /* Device configured */
         bDeviceState = CONFIGURED;
+
+        ClearDTOG_TX(ENDP1);
+        ClearDTOG_RX(ENDP2);
     }
 }
 
@@ -207,11 +208,7 @@ void Virtual_Com_Port_SetDeviceAddress(void)
 *******************************************************************************/
 void Virtual_Com_Port_Status_In(void)
 {
-#if 0
-	if (Request == SET_LINE_CODING) {
-        Request = 0;
-    }
-#endif
+
 }
 
 /*******************************************************************************
@@ -256,7 +253,6 @@ static uint8_t *Virtual_Com_Port_ReadLatencyTimer(uint16_t Length)
     }
     return (uint8_t*)&latencyTimer;
 }
-
 
 
 /*******************************************************************************
@@ -395,39 +391,5 @@ RESULT Virtual_Com_Port_Get_Interface_Setting(uint8_t Interface, uint8_t Alterna
     }
     return USB_SUCCESS;
 }
-
-#if 0
-/*******************************************************************************
-* Function Name  : Virtual_Com_Port_GetLineCoding.
-* Description    : send the linecoding structure to the PC host.
-* Input          : Length.
-* Output         : None.
-* Return         : Linecoding structure base address.
-*******************************************************************************/
-uint8_t *Virtual_Com_Port_GetLineCoding(uint16_t Length)
-{
-    if (Length == 0) {
-        pInformation->Ctrl_Info.Usb_wLength = sizeof(linecoding);
-        return NULL;
-    }
-    return (uint8_t *) & linecoding;
-}
-
-/*******************************************************************************
-* Function Name  : Virtual_Com_Port_SetLineCoding.
-* Description    : Set the linecoding structure fields.
-* Input          : Length.
-* Output         : None.
-* Return         : Linecoding structure base address.
-*******************************************************************************/
-uint8_t *Virtual_Com_Port_SetLineCoding(uint16_t Length)
-{
-    if (Length == 0) {
-        pInformation->Ctrl_Info.Usb_wLength = sizeof(linecoding);
-        return NULL;
-    }
-    return (uint8_t *) & linecoding;
-}
-#endif
 
 /******************* (C) COPYRIGHT 2011 STMicroelectronics *****END OF FILE****/

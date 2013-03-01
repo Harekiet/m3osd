@@ -33,22 +33,31 @@
 * Output         : None.
 * Return         : None	.
 *******************************************************************************/
-void UserToPMABufferCopy(uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wOffset,  uint16_t wNBytes)
+void UserToPMABufferCopy(uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wOffset, uint16_t wNBytes)
 {
-  uint32_t n = (wNBytes + 1) >> 1;   /* n = (wNBytes + 1) / 2 */
-  uint32_t i, temp1, temp2;
-  uint16_t *pdwVal;
-  pdwVal = (uint16_t *)(wPMABufAddr * 2 + PMAAddr);
-  for (i = n; i != 0; i--)
-  {
-    temp1 = (uint16_t) * pbUsrBuf;
-    pbUsrBuf++;
-    temp2 = temp1 | (uint16_t) * pbUsrBuf << 8;
-    *pdwVal++ = temp2;
-    pdwVal++;
-    pbUsrBuf++;
-  }
+	//Skip 0 counts
+	if ( !wNBytes )
+		return;
+	uint16_t *pdwVal = (uint16_t *)( (wPMABufAddr + (wOffset & ~0x1 ) ) * 2 + PMAAddr);
+	//Handle the first unaligned one
+	if ( wOffset & 1 ) {
+		*pdwVal = ( *pdwVal & 0x00ff ) | ( *pbUsrBuf << 8 );
+		pdwVal += 2;
+		pbUsrBuf += 1;
+		wNBytes--;
+	}
+	//Handle the remaining ones
+	for ( ; wNBytes > 1; wNBytes -= 2 ) {
+		*pdwVal =  *(uint16_t*) pbUsrBuf;
+		pbUsrBuf += 2;
+		pdwVal += 2;
+	}
+	//Handle any remaining byte
+	if ( wNBytes ) {
+		*pdwVal = ( *pdwVal & 0xff00 ) | ( *pbUsrBuf );
+	}
 }
+
 /*******************************************************************************
 * Function Name  : PMAToUserBufferCopy
 * Description    : Copy a buffer from user memory area to packet memory area (PMA)
@@ -63,10 +72,10 @@ void PMAToUserBufferCopy(uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wOffs
 	//Skip 0 counts
 	if ( !wNBytes )
 		return;
-	uint32_t *pdwVal = (uint32_t *)(wPMABufAddr + (wOffset & ~0x1 ) ) * 2 + PMAAddr);
+	uint32_t *pdwVal = (uint32_t *)( (wPMABufAddr + (wOffset & ~0x1 ) ) * 2 + PMAAddr);
 	//First handle an unaligned read
 	if ( wOffset & 1 ) {
-		pbUsrBuf++ = (*pdwVal++) >> 8;
+		*pbUsrBuf++ = (*pdwVal++) >> 8;
 		wNBytes--;
 	}
 	//Handle aligned any aligned bytes

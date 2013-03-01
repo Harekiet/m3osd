@@ -7,9 +7,6 @@
 #define MULTIWII_STACK_SIZE 128
 OS_STK multiwiiStack[MULTIWII_STACK_SIZE] __attribute__ ((aligned (8)));
 
-//Is the cli active or not
-static uint8_t cliActive = 0;
-
 multiwiiData_t multiwiiData;
 
 static const uint8_t MSP_HEADER[3] = { 0x24, 0x4D, 0x3C };
@@ -152,7 +149,7 @@ static void multiwiiRequestData(int type)
 {
     uint8_t wp = 0;
 
-    switch (type) {  // req without spike
+    switch (type & 0x3) {  // req without spike
         default:
         case 0:
             requestMSP(MSP_ATTITUDE, NULL, 0);
@@ -180,21 +177,18 @@ static void multiwiiTask(void *unused)
     multiwiiData.serial = serialOpen(USART2, 115200);
 
     while (1) {
-        CoTickDelay(8);
+        CoTickDelay( 5 );
+        //Empty the usb cli buffer
         while( USB_RXAvailable() ) {
         	uint8_t c = USB_RXRead();
-        	USB_TXWrite( c );
+        	cliReceive( c );
+        	//USB_TXWrite( c );
         }
+        USB_Update( 5 );
 
-        if ( !cliActive ) {
-        	multiwiiRequestData(type++ % 4);
-          	CoTickDelay(2);
-          	while (uartAvailable(multiwiiData.serial))
-          		receiveMSP( uartRead( multiwiiData.serial ) );
-        } else {
-          	while (uartAvailable(multiwiiData.serial)) {
-          		cliReceive( uartRead( multiwiiData.serial ) );
-          	}
+       	multiwiiRequestData( type++ );
+        while ( uartAvailable(multiwiiData.serial) ) {
+        	receiveMSP( uartRead( multiwiiData.serial ) );
         }
     }
 }
