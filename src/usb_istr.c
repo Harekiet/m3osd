@@ -11,10 +11,10 @@ __IO uint8_t bIntPackSOF = 0;   /* SOFs received between 2 consecutive packets *
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /* function pointers to non-control endpoints service routines */
-void (*pEpInt_IN[7]) (void) = {
+void (*const pEpInt_IN[7]) (void) = {
 EP1_IN_Callback, EP2_IN_Callback, EP3_IN_Callback, EP4_IN_Callback, EP5_IN_Callback, EP6_IN_Callback, EP7_IN_Callback};
 
-void (*pEpInt_OUT[7]) (void) = {
+void (*const pEpInt_OUT[7]) (void) = {
 EP1_OUT_Callback, EP2_OUT_Callback, EP3_OUT_Callback, EP4_OUT_Callback, EP5_OUT_Callback, EP6_OUT_Callback, EP7_OUT_Callback};
 
 void USB_LP_CAN1_RX0_IRQHandler(void)

@@ -38,12 +38,12 @@ static const EepRom_t eepRom = {
 static uint8_t eepromAddr;
 static uint8_t latencyTimer;
 
-DEVICE Device_Table = {
+const DEVICE Device_Table = {
     EP_NUM,
     1
 };
 
-DEVICE_PROP Device_Property = {
+const DEVICE_PROP Device_Property = {
     Virtual_Com_Port_init,
     Virtual_Com_Port_Reset,
     Virtual_Com_Port_Status_In,
@@ -58,7 +58,7 @@ DEVICE_PROP Device_Property = {
     0x40                        /*MAX PACKET SIZE */
 };
 
-USER_STANDARD_REQUESTS User_Standard_Requests = {
+const USER_STANDARD_REQUESTS User_Standard_Requests = {
     Virtual_Com_Port_GetConfiguration,
     Virtual_Com_Port_SetConfiguration,
     Virtual_Com_Port_GetInterface,
@@ -70,17 +70,17 @@ USER_STANDARD_REQUESTS User_Standard_Requests = {
     Virtual_Com_Port_SetDeviceAddress
 };
 
-ONE_DESCRIPTOR Device_Descriptor = {
+const ONE_DESCRIPTOR Device_Descriptor = {
     (uint8_t *) Virtual_Com_Port_DeviceDescriptor,
     VIRTUAL_COM_PORT_SIZ_DEVICE_DESC
 };
 
-ONE_DESCRIPTOR Config_Descriptor = {
+const ONE_DESCRIPTOR Config_Descriptor = {
     (uint8_t *) Virtual_Com_Port_ConfigDescriptor,
     VIRTUAL_COM_PORT_SIZ_CONFIG_DESC
 };
 
-ONE_DESCRIPTOR String_Descriptor[4] = {
+const ONE_DESCRIPTOR String_Descriptor[4] = {
     {(uint8_t *) Virtual_Com_Port_StringLangID, VIRTUAL_COM_PORT_SIZ_STRING_LANGID}
     ,
     {(uint8_t *) Virtual_Com_Port_StringVendor, VIRTUAL_COM_PORT_SIZ_STRING_VENDOR}
@@ -176,7 +176,7 @@ void Virtual_Com_Port_Reset(void)
 *******************************************************************************/
 void Virtual_Com_Port_SetConfiguration(void)
 {
-    DEVICE_INFO *pInfo = &Device_Info;
+    const DEVICE_INFO *pInfo = &Device_Info;
 
     if (pInfo->Current_Configuration != 0) {
         /* Device configured */
@@ -339,7 +339,7 @@ RESULT Virtual_Com_Port_NoData_Setup(uint8_t RequestNo)
 * Output         : None.
 * Return         : The address of the device descriptor.
 *******************************************************************************/
-uint8_t *Virtual_Com_Port_GetDeviceDescriptor(uint16_t Length)
+const uint8_t *Virtual_Com_Port_GetDeviceDescriptor(uint16_t Length)
 {
     return Standard_GetDescriptorData(Length, &Device_Descriptor);
 }
@@ -351,7 +351,7 @@ uint8_t *Virtual_Com_Port_GetDeviceDescriptor(uint16_t Length)
 * Output         : None.
 * Return         : The address of the configuration descriptor.
 *******************************************************************************/
-uint8_t *Virtual_Com_Port_GetConfigDescriptor(uint16_t Length)
+const uint8_t *Virtual_Com_Port_GetConfigDescriptor(uint16_t Length)
 {
     return Standard_GetDescriptorData(Length, &Config_Descriptor);
 }
@@ -363,7 +363,7 @@ uint8_t *Virtual_Com_Port_GetConfigDescriptor(uint16_t Length)
 * Output         : None.
 * Return         : The address of the string descriptors.
 *******************************************************************************/
-uint8_t *Virtual_Com_Port_GetStringDescriptor(uint16_t Length)
+const uint8_t *Virtual_Com_Port_GetStringDescriptor(uint16_t Length)
 {
     uint8_t wValue0 = pInformation->USBwValue0;
     if (wValue0 > 4) {
